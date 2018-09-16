@@ -64,23 +64,24 @@ void MainWindow::refresh(string statusMsg, QString selectedMod)
         it.next();
         QString qsModSize, qsFileCount;
 
-        status("Scanning "+dir.dirName().toStdString()+"...");
-        if(dir.dirName().toStdString() == config->loadSetting("Mounted"))
+        status("Scanning "+it.fileName().toStdString()+"...");
+        if(it.fileName().toStdString() == config->loadSetting("Mounted"))
         {
             qsModSize = QString::fromStdString(config->loadSetting("MountedSize"));
             qsFileCount = QString::fromStdString(config->loadSetting("MountedCount"));
         }
         else
         {
+            utils->error("test",it.fileName().toStdString());
             double modSize = 0;
             int fileCount = 0;
-            QDir dir2(dir.dirName());
+            QDir dir2(it.filePath());
             dir2.setFilter(QDir::NoDotAndDotDot|QDir::Files);
             QDirIterator it2(dir2, QDirIterator::Subdirectories);
             while (it2.hasNext())
             {
                 it2.next();
-                modSize += QFileInfo(dir2, it2.filePath()).size();
+                modSize += it2.fileInfo().size();
                 fileCount++;
             }
 
@@ -92,7 +93,7 @@ void MainWindow::refresh(string statusMsg, QString selectedMod)
         {
             int row = ui->modList->rowCount();
             ui->modList->insertRow(row);
-            ui->modList->setItem(row, 0, new QTableWidgetItem(dir.dirName()));
+            ui->modList->setItem(row, 0, new QTableWidgetItem(it.fileName()));
             ui->modList->setItem(row, 1, new QTableWidgetItem(qsModSize));
             ui->modList->setItem(row, 2, new QTableWidgetItem(qsFileCount));
 
@@ -360,11 +361,7 @@ void MainWindow::addMod(QString dlgStart)
 
         int result = copyMove.exec();
 
-        if(result == 0)
-        {
-            //copy files
-        }
-        else if(result == 1)
+        if(result == 0 || result == 1)
         {
             QDir dir(qsFolder);
             QString modName = dir.dirName(),
@@ -376,7 +373,8 @@ void MainWindow::addMod(QString dlgStart)
                 while(it.hasNext())
                 {
                     it.next();
-                    moveFile(it.filePath(), qsNewFolder+it.filePath().remove(qsFolder));
+                    if(result == 0) 
+                    else if(result == 1) moveFile(it.filePath(), qsNewFolder+it.filePath().remove(qsFolder));
                 }
                 refresh(modName.toStdString()+" added.", modName);
             }
@@ -432,7 +430,7 @@ void MainWindow::renameModSave(QTableWidgetItem* item)
     else statusMsg = "Saving wrong item.";
 
     modName = "";
-    modItem = 0;
+    modItem = nullptr;
     refresh(statusMsg, selectedMod);
 }
 

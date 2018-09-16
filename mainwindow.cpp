@@ -62,27 +62,26 @@ void MainWindow::refresh(string statusMsg, QString selectedMod)
     while (it.hasNext())
     {
         it.next();
-        QFileInfo fi(dir, it.filePath());
         QString qsModSize, qsFileCount;
 
-        status("Scanning "+fi.fileName().toStdString()+"...");
-        if(fi.fileName().toStdString() == config->loadSetting("Mounted"))
+        status("Scanning "+it.fileName().toStdString()+"...");
+        if(it.fileName().toStdString() == config->loadSetting("Mounted"))
         {
             qsModSize = QString::fromStdString(config->loadSetting("MountedSize"));
             qsFileCount = QString::fromStdString(config->loadSetting("MountedCount"));
         }
         else
         {
-            qint64 modSize = 0;
+            utils->error("test",it.fileName().toStdString());
+            double modSize = 0;
             int fileCount = 0;
-            QDir dir2(fi.filePath());
+            QDir dir2(it.filePath());
             dir2.setFilter(QDir::NoDotAndDotDot|QDir::Files);
             QDirIterator it2(dir2, QDirIterator::Subdirectories);
             while (it2.hasNext())
             {
                 it2.next();
-                QFileInfo fi2(dir2, it2.filePath());
-                modSize += fi2.size();
+                modSize += it2.fileInfo().size();
                 fileCount++;
             }
 
@@ -94,11 +93,11 @@ void MainWindow::refresh(string statusMsg, QString selectedMod)
         {
             int row = ui->modList->rowCount();
             ui->modList->insertRow(row);
-            ui->modList->setItem(row, 0, new QTableWidgetItem(fi.fileName()));
+            ui->modList->setItem(row, 0, new QTableWidgetItem(it.fileName()));
             ui->modList->setItem(row, 1, new QTableWidgetItem(qsModSize));
             ui->modList->setItem(row, 2, new QTableWidgetItem(qsFileCount));
 
-            if(selectedMod == fi.fileName()) selectedRow = row;
+            if(selectedMod == dir.dirName()) selectedRow = row;
         }
     }
 
@@ -319,7 +318,9 @@ void MainWindow::getMount(bool setFocus)
     {
         disconnect(ui->toggleMountBtn, SIGNAL(clicked()), this, SLOT(mountMod()));
         ui->toggleMountBtn->setText("Un&mount");
-        ui->modList->setStyleSheet("QTableWidget::item:selected { border: 2px dashed #bcbe00; border-top-color: #f7f500; border-bottom-color: #f7f500; color: #eee; background-color: #666; }");
+        ui->modList->setStyleSheet(tr("QTableWidget::item:selected { border: 2px dashed #bcbe00;")
+                                  +tr("border-top-color: #f7f500; border-bottom-color: #f7f500;")
+                                  +tr("color: #eee; background-color: #555; }"));
         ui->modList->setEnabled(false);
 
         bool modFound = false;
@@ -432,7 +433,7 @@ void MainWindow::renameModSave(QTableWidgetItem* item)
     else statusMsg = "Saving wrong item.";
 
     modName = "";
-    modItem = 0;
+    modItem = nullptr;
     refresh(statusMsg, selectedMod);
 }
 

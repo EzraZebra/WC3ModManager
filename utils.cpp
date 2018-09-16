@@ -10,7 +10,7 @@ using namespace std;
 Utils::Utils()
 {
     wchar_t exePathBuffer[MAX_PATH];
-    GetModuleFileName(NULL, exePathBuffer, MAX_PATH);
+    GetModuleFileName(nullptr, exePathBuffer, MAX_PATH);
     wstring ws(exePathBuffer);
     string exePathBufferStr(ws.begin(), ws.end());
     string::size_type pos = exePathBufferStr.find_last_of("\\/");
@@ -135,14 +135,14 @@ bool Utils::regSet(const wchar_t* key, DWORD value)
 void Utils::error(string info, string msg)
 {
     static char timestamp[20];
-    time_t now = time(0);
+    time_t now = time(nullptr);
     strftime(timestamp, sizeof(timestamp), "%Y%m%d_%H%M%S", localtime(&now));
 
     string timestampStr(timestamp);
 
     if(!error_log.is_open()) error_log.open((exePath+"/error_log_"+timestampStr+".txt").c_str());
 
-    const char* output = ("["+timestampStr+"] "+info+" - "+msg).c_str();
+    string output = ("["+timestampStr+"] "+info+" - "+msg);
     error_log << output << endl;
     cout << output << endl;
 }
