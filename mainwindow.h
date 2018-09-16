@@ -14,7 +14,7 @@ class MainWindow : public QMainWindow
     Q_OBJECT
 
 public:
-    explicit MainWindow(QWidget *parent = 0);
+    explicit MainWindow(QWidget *parent = nullptr);
     ~MainWindow();
 
 private slots:
@@ -25,13 +25,14 @@ private slots:
     void mountMod();
     void unmountMod();
     void openSettings();
-    void openExplorer();
+    void openModFolder();
     void refresh(std::string="", QString="");
     void renameModStart(QTableWidgetItem*);
     void renameModSave(QTableWidgetItem*);
     void renameModAction();
     void deleteMod();
     void addMod(QString="");
+    void openAbout();
 
 public:
     Utils* utils = new Utils();
@@ -40,12 +41,13 @@ public:
 private:
     Ui::MainWindow *ui;
     Settings *settings = new Settings(this, config);
-    std::string moveFile(QString, QString);
+    std::string moveFile(QString, QString, bool=false);
     void status(std::string, bool=false);
     void setLaunchIcons();
     void getAllowFiles();
     void getGameVersion();
     void getMount(bool=false);
+    bool modSelected();
     QIcon war3 = QIcon(":/war3.png");
     QIcon war3mod = QIcon(":/war3_mod.png");
     QIcon war3x = QIcon(":/war3x.png");

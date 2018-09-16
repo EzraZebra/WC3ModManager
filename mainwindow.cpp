@@ -15,6 +15,7 @@ MainWindow:: MainWindow(QWidget *parent) :
 
     //Menubar
     connect(ui->actionSettings, SIGNAL(triggered()), this, SLOT(openSettings()));
+    connect(ui->actionAbout, SIGNAL(triggered()), this, SLOT(openAbout()));
 
     //Tools
     connect(ui->gameBtn, SIGNAL(clicked()), this, SLOT(launchGame()));
@@ -30,7 +31,7 @@ MainWindow:: MainWindow(QWidget *parent) :
     ui->modList->addAction(actionMount);
     connect(actionMount, SIGNAL(triggered()), this, SLOT(mountMod()));
     ui->modList->addAction(ui->actionOpen);
-    connect(ui->actionOpen, SIGNAL(triggered()), this, SLOT(openExplorer()));
+    connect(ui->actionOpen, SIGNAL(triggered()), this, SLOT(openModFolder()));
     ui->modList->addAction(ui->actionRename);
     connect(ui->actionRename, SIGNAL(triggered()), this, SLOT(renameModAction()));
     ui->modList->addAction(ui->actionDelete);
@@ -43,6 +44,13 @@ void MainWindow::openSettings()
 {
     settings->loadSettings();
     if(settings->exec() == 1) refresh("Settings saved.");
+}
+
+void MainWindow::openAbout()
+{
+    QMessageBox::about(this, "About WC3 Mod Manager", tr("WC3 Mod Manager is an open source project by EzraZebra (aka loktar)\n")
+                                                     +tr("https://github.com/EzraZebra/WC3ModManager\n")
+                                                     +tr("Will be released on Hive Workshop."));
 }
 
 void MainWindow::refresh(string statusMsg, QString selectedMod)
@@ -65,10 +73,10 @@ void MainWindow::refresh(string statusMsg, QString selectedMod)
         QString qsModSize, qsFileCount;
 
         status("Scanning "+it.fileName().toStdString()+"...");
-        if(it.fileName().toStdString() == config->loadSetting("Mounted"))
+        if(it.fileName().toStdString() == config->getSetting("Mounted"))
         {
-            qsModSize = QString::fromStdString(config->loadSetting("MountedSize"));
-            qsFileCount = QString::fromStdString(config->loadSetting("MountedCount"));
+            qsModSize = QString::fromStdString(config->getSetting("MountedSize"));
+            qsFileCount = QString::fromStdString(config->getSetting("MountedCount"));
         }
         else
         {
@@ -89,7 +97,7 @@ void MainWindow::refresh(string statusMsg, QString selectedMod)
             qsFileCount = QString("%0 files").arg(fileCount);
         }
 
-        if(qsFileCount != "0 files" || config->loadSetting("hideEmptyMods") != "1")
+        if(qsFileCount != "0 files" || config->getSetting("hideEmptyMods") != "1")
         {
             int row = ui->modList->rowCount();
             ui->modList->insertRow(row);
@@ -116,7 +124,7 @@ void MainWindow::launchGame()
 {
     status("Launching game...");
     if(QDesktopServices::openUrl(QUrl::fromLocalFile(
-            QString::fromStdString(config->loadSetting("GamePath"))+"/Warcraft III.exe")))
+            QString::fromStdString(config->getSetting("GamePath"))+"/Warcraft III.exe")))
         status("Game launched.");
     else status("Failed to launch Warcraft III.exe", true);
 }
@@ -125,14 +133,14 @@ void MainWindow::launchEditor()
 {
     status("Launching editor...");
     if(QDesktopServices::openUrl(QUrl::fromLocalFile(
-            QString::fromStdString(config->loadSetting("GamePath"))+"/World Editor.exe")))
+            QString::fromStdString(config->getSetting("GamePath"))+"/World Editor.exe")))
         status("Editor launched.");
     else status("Failed to launch World Editor.exe", true);
 }
 
 void MainWindow::setLaunchIcons()
 {
-    if(ui->allowFilesCbx->isChecked() && config->loadSetting("Mounted") != "")
+    if(ui->allowFilesCbx->isChecked() && config->getSetting("Mounted") != "")
     {
         if(ui->gameVersionCbx->isChecked()) ui->gameBtn->setIcon(war3xmod);
         else ui->gameBtn->setIcon(war3mod);
@@ -199,12 +207,12 @@ void MainWindow::mountMod()
 {
     ui->toggleMountBtn->setEnabled(false);
 
-    if(config->loadSetting("Mounted") == "")
+    if(config->getSetting("Mounted") == "")
     {
         int iSelectedMod = ui->modList->currentRow();
         if(iSelectedMod >= 0 && iSelectedMod < ui->modList->rowCount())
         {
-            string  gamePath = config->loadSetting("GamePath"),
+            string  gamePath = config->getSetting("GamePath"),
                     selectedMod = ui->modList->item(iSelectedMod, 0)->text().toStdString();
 
             status("Mounting "+selectedMod+"...");
@@ -253,7 +261,7 @@ void MainWindow::mountMod()
             else status("Invalid Warcraft III folder.", true);
         }
         else status("Select a mod to mount.");
-    } else status("Already mounted: "+config->loadSetting("Mounted"));
+    } else status("Already mounted: "+config->getSetting("Mounted"));
 
     getMount();
 }
@@ -262,14 +270,14 @@ void MainWindow::unmountMod()
 {
     ui->toggleMountBtn->setEnabled(false);
 
-    string mounted = config->loadSetting("Mounted");
+    string mounted = config->getSetting("Mounted");
     if(mounted != "")
     {
         status("Unmounting "+mounted+"...");
         if(utils->txtReaderStart(config->outFilesPath))
         {
             while(utils->txtReaderNext())
-                moveFile(QString::fromStdString(config->loadSetting("MountedTo")+"/"+utils->txtReaderLine),
+                moveFile(QString::fromStdString(config->getSetting("MountedTo")+"/"+utils->txtReaderLine),
                          QString::fromStdString(config->modPath+"/"+mounted+"/"+utils->txtReaderLine));
 
             ofstream out_files(config->outFilesPath.c_str());
@@ -305,7 +313,7 @@ void MainWindow::unmountMod()
 
 void MainWindow::getMount(bool setFocus)
 {
-    if(config->loadSetting("Mounted") == "")
+    if(config->getSetting("Mounted") == "")
     {
         disconnect(ui->toggleMountBtn, SIGNAL(clicked()), this, SLOT(unmountMod()));
         ui->toggleMountBtn->setText("&Mount");
@@ -324,7 +332,7 @@ void MainWindow::getMount(bool setFocus)
         ui->modList->setEnabled(false);
 
         bool modFound = false;
-        string mount = config->loadSetting("Mounted");
+        string mount = config->getSetting("Mounted");
         for(int i=0; i<ui->modList->rowCount() && !modFound; i++)
             if(ui->modList->item(i, 0)->text() == QString::fromStdString(mount)) {
                 modFound = true;
@@ -334,7 +342,7 @@ void MainWindow::getMount(bool setFocus)
         if(!modFound) {
             string newModFolderStr = config->modPath+"/"+mount;
             wstring newModFolderWStr(newModFolderStr.begin(), newModFolderStr.end());
-            if(CreateDirectory(newModFolderWStr.c_str(), NULL) || ERROR_ALREADY_EXISTS == GetLastError())
+            if(CreateDirectory(newModFolderWStr.c_str(), nullptr) || ERROR_ALREADY_EXISTS == GetLastError())
                 refresh();
             else status("Failed to create mod folder.");
         }
@@ -361,11 +369,7 @@ void MainWindow::addMod(QString dlgStart)
 
         int result = copyMove.exec();
 
-        if(result == 0)
-        {
-            //copy files
-        }
-        else if(result == 1)
+        if(result == 0 || result == 1)
         {
             QDir dir(qsFolder);
             QString modName = dir.dirName(),
@@ -377,7 +381,7 @@ void MainWindow::addMod(QString dlgStart)
                 while(it.hasNext())
                 {
                     it.next();
-                    moveFile(it.filePath(), qsNewFolder+it.filePath().remove(qsFolder));
+                    moveFile(it.filePath(), qsNewFolder+it.filePath().remove(qsFolder), result == 0);
                 }
                 refresh(modName.toStdString()+" added.", modName);
             }
@@ -386,15 +390,17 @@ void MainWindow::addMod(QString dlgStart)
     }
 }
 
-void MainWindow::openExplorer()
+void MainWindow::openModFolder()
 {
-    QDesktopServices::openUrl(QUrl::fromLocalFile(
-        QString::fromStdString(config->modPath)+"/"+ui->modList->item(ui->modList->currentRow(), 0)->text()));
+    if(modSelected())
+        QDesktopServices::openUrl(QUrl::fromLocalFile(
+            QString::fromStdString(config->modPath)+"/"+ui->modList->item(ui->modList->currentRow(), 0)->text()));
 }
 
 void MainWindow::renameModAction()
 {
-    renameModStart(ui->modList->item(ui->modList->currentRow(), 0));
+    if(modSelected())
+        renameModStart(ui->modList->item(ui->modList->currentRow(), 0));
 }
 
 void MainWindow::renameModStart(QTableWidgetItem* item)
@@ -439,23 +445,36 @@ void MainWindow::renameModSave(QTableWidgetItem* item)
 
 void MainWindow::deleteMod()
 {
-    QString qsModName = ui->modList->item(ui->modList->currentRow(), 0)->text();
-
-    if(QMessageBox::warning(this, "Permanently delete "+qsModName+"?",
-            "Are you sure you want to permanently delete "+qsModName+" ("
-           +ui->modList->item(ui->modList->currentRow(), 1)->text()+" / "
-           +ui->modList->item(ui->modList->currentRow(), 2)->text()+")?",
-            QMessageBox::Yes|QMessageBox::Cancel) == QMessageBox::Yes)
+    if(modSelected())
     {
-        string sModName = qsModName.toStdString();
-        status("Deleting "+sModName+"...");
-        QDir dir(QString::fromStdString(config->modPath)+"/"+qsModName);
-        if(dir.removeRecursively()) refresh(sModName+" deleted.");
-        else refresh("Failed to delete "+sModName+".", qsModName);
+        QString qsModName = ui->modList->item(ui->modList->currentRow(), 0)->text();
+
+        if(QMessageBox::warning(this, "Permanently delete "+qsModName+"?",
+                "Are you sure you want to permanently delete "+qsModName+" ("
+               +ui->modList->item(ui->modList->currentRow(), 1)->text()+" / "
+               +ui->modList->item(ui->modList->currentRow(), 2)->text()+")?",
+                QMessageBox::Yes|QMessageBox::Cancel) == QMessageBox::Yes)
+        {
+            string sModName = qsModName.toStdString();
+            status("Deleting "+sModName+"...");
+            QDir dir(QString::fromStdString(config->modPath)+"/"+qsModName);
+            if(dir.removeRecursively()) refresh(sModName+" deleted.");
+            else refresh("Failed to delete "+sModName+".", qsModName);
+        }
     }
 }
 
-string MainWindow::moveFile(QString src, QString dst)
+bool MainWindow::modSelected()
+{
+    if(ui->modList->currentRow() < 0 || ui->modList->currentRow() >= ui->modList->rowCount())
+    {
+        status("Select a mod first.");
+        return false;
+    }
+    return true;
+}
+
+string MainWindow::moveFile(QString src, QString dst, bool copy)
 {
     QFileInfo fi(src);
     string returnPath = "";
@@ -474,14 +493,14 @@ string MainWindow::moveFile(QString src, QString dst)
                 backup_fi.setFile(newBackupPath);
             }
             returnPath = newBackupPath.toStdString();
-            QFile().rename(dst, newBackupPath);
+            QFile::rename(dst, newBackupPath);
         }
 
         string dstFolder = dst.toStdString();
         dstFolder = dstFolder.substr(0,dstFolder.find_last_of("/\\"));
         QDir().mkpath(QString::fromStdString(dstFolder));
 
-        if(QFile().rename(src, dst))
+        if(copy ? QFile::copy(src, dst) : QFile::rename(src, dst))
         {
             string srcFolder = src.toStdString();
             srcFolder = srcFolder.substr(0,srcFolder.find_last_of("/\\"));
@@ -493,7 +512,7 @@ string MainWindow::moveFile(QString src, QString dst)
                 dir.cdUp();
                 string sDelPath = delPath.toStdString(),
                        delPathParent = sDelPath.substr(0,sDelPath.find_last_of("/\\"));
-                if(sDelPath != config->modPath && delPathParent != config->modPath && sDelPath != config->loadSetting("GamePath"))
+                if(sDelPath != config->modPath && delPathParent != config->modPath && sDelPath != config->getSetting("GamePath"))
                     QDir().rmdir(delPath);
             }
         }

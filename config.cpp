@@ -23,7 +23,7 @@ Config::Config(Utils* newUtils)
     //Load defaults
     bool configChanged = false;
 
-    if(loadSetting("GamePath") == "")
+    if(getSetting("GamePath") == "")
     {
         string gamePath = utils->regGet(L"GamePath", REG_SZ);
         if(gamePath == "") gamePath = utils->regGet(L"InstallPath", REG_SZ);
@@ -32,7 +32,7 @@ Config::Config(Utils* newUtils)
         saveSetting("GamePath", gamePath);
         configChanged = true;
     }
-    if(loadSetting("hideEmptyMods") == "")
+    if(getSetting("hideEmptyMods") == "")
     {
         saveSetting("hideEmptyMods", "1");
         configChanged = true;
@@ -61,7 +61,7 @@ void Config::deleteSetting(string key)
         settings.erase(key);
 }
 
-string Config::loadSetting(string key)
+string Config::getSetting(string key)
 {
     if(settings.find(key) == settings.end())
         return "";

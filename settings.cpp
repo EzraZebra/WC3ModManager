@@ -25,9 +25,9 @@ Settings::Settings(QWidget *parent, Config *newConfig) :
 
 void Settings::loadSettings()
 {
-    ui->dirEdit->setText(QString::fromStdString(config->loadSetting("GamePath")));
+    ui->dirEdit->setText(QString::fromStdString(config->getSetting("GamePath")));
 
-    if(config->loadSetting("hideEmptyMods") == "1")
+    if(config->getSetting("hideEmptyMods") == "1")
         ui->hideEmptyCbx->setChecked(true);
     else
         ui->hideEmptyCbx->setChecked(false);
