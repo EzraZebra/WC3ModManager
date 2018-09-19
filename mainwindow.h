@@ -45,7 +45,6 @@ private:
 
 private slots:
     void openSettings();
-    void openAbout();
     void refresh(std::string="", QString="");
     void launchGame();
     void launchEditor();

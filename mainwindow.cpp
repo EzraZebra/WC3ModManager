@@ -20,7 +20,7 @@ MainWindow:: MainWindow(QWidget *parent) :
 
     //Menubar
     connect(ui->actionSettings, SIGNAL(triggered()), this, SLOT(openSettings()));
-    connect(ui->actionAbout, SIGNAL(triggered()), this, SLOT(openAbout()));
+    connect(ui->actionAbout, SIGNAL(triggered()), this, SLOT(about->show()));
 
     //Tools
     connect(ui->gameBtn, SIGNAL(clicked()), this, SLOT(launchGame()));
@@ -49,11 +49,6 @@ void MainWindow::openSettings()
 {
     settings->loadSettings();
     if(settings->exec() == 1) refresh("Settings saved.");
-}
-
-void MainWindow::openAbout()
-{
-    about->show();
 }
 
 void MainWindow::refresh(string statusMsg, QString selectedMod)
