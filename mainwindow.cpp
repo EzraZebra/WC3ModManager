@@ -1,4 +1,5 @@
 #include "ui_mainwindow.h"
+#include "ui_about.h"
 #include "thread.h"
 #include <sstream>
 #include <QAction>
@@ -12,6 +13,10 @@ MainWindow:: MainWindow(QWidget *parent) :
     ui->setupUi(this);
 
     refresh("Setting up UI...");
+
+    Ui::About uiAbout;
+    uiAbout.setupUi(about);
+    about->setWindowFlag(Qt::MSWindowsFixedSizeDialogHint);
 
     //Menubar
     connect(ui->actionSettings, SIGNAL(triggered()), this, SLOT(openSettings()));
@@ -48,9 +53,7 @@ void MainWindow::openSettings()
 
 void MainWindow::openAbout()
 {
-    QMessageBox::about(this, "About WC3 Mod Manager", tr("WC3 Mod Manager is an open source project by EzraZebra (aka loktar)\n")
-                                                     +tr("https://github.com/EzraZebra/WC3ModManager\n")
-                                                     +tr("Will be released on Hive Workshop."));
+    about->show();
 }
 
 void MainWindow::refresh(string statusMsg, QString selectedMod)
@@ -200,55 +203,6 @@ void MainWindow::getGameVersion()
     else status("Failed to get Preferred Game Version.");
 
     setLaunchIcons();
-}
-
-string MainWindow::moveFile(QString src, QString dst, bool copy)
-{
-    QFileInfo fi(src);
-    string returnPath = "";
-
-    if(fi.isFile())
-    {
-        QFileInfo new_fi(dst);
-        if(new_fi.exists())
-        {
-            QString backupPath = dst+".w3mmbackup",
-                    newBackupPath = backupPath;
-            QFileInfo backup_fi(backupPath);
-            for(int i=2; backup_fi.exists(); i++)
-            {
-                newBackupPath = backupPath+QString::number(i);
-                backup_fi.setFile(newBackupPath);
-            }
-            returnPath = newBackupPath.toStdString();
-            QFile::rename(dst, newBackupPath);
-        }
-
-        string dstFolder = dst.toStdString();
-        dstFolder = dstFolder.substr(0,dstFolder.find_last_of("/\\"));
-        QDir().mkpath(QString::fromStdString(dstFolder));
-
-        if(copy ? QFile::copy(src, dst) : QFile::rename(src, dst))
-        {
-            string srcFolder = src.toStdString();
-            srcFolder = srcFolder.substr(0,srcFolder.find_last_of("/\\"));
-            QDir dir(QString::fromStdString(srcFolder));
-            dir.setFilter(QDir::NoDotAndDotDot|QDir::AllEntries|QDir::NoSymLinks);
-
-            while(dir.count() == 0) {
-                QString delPath = dir.absolutePath();
-                dir.cdUp();
-                string sDelPath = delPath.toStdString(),
-                       delPathParent = sDelPath.substr(0,sDelPath.find_last_of("/\\"));
-                if(sDelPath != config->modPath && delPathParent != config->modPath && sDelPath != config->getSetting("GamePath"))
-                    QDir().rmdir(delPath);
-            }
-        }
-        else status(string("Failed to ")+string(copy ? "copy" : "move")+string(" file: ")+src.toStdString(), true);
-    }
-    else if(src != "" && !fi.exists()) status("Missing file: "+src.toStdString(), true);
-
-    return returnPath;
 }
 
 void MainWindow::mountMod()

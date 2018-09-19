@@ -44,9 +44,8 @@ HEADERS += \
 FORMS += \
         mainwindow.ui \
     settings.ui \
-    filestatus.ui
+    filestatus.ui \
+    about.ui
 
 RESOURCES += \
     icons.qrc
-
-DISTFILES +=

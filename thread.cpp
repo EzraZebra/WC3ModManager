@@ -226,6 +226,7 @@ Controller::Controller(MainWindow *newMw, QString newAction, QString newMod)
     connect(this, &Controller::moveFolder, worker, &Worker::moveFolderWorker);
     connect(this, &Controller::unmountMod, worker, &Worker::unmountModWorker);
     connect(worker, &Worker::moveFolderReady, this, &Controller::result);
+    connect(worker, &Worker::deleteFolderReady, this, &Controller::result);
     connect(worker, &Worker::unmountModReady, this, &Controller::result);
     connect(worker, &Worker::status, this, &Controller::status);
     connect(worker, &Worker::appendStatus, this, &Controller::appendStatus);

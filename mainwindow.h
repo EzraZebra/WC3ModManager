@@ -16,19 +16,17 @@ class MainWindow : public QMainWindow
 
     Ui::MainWindow *ui;
     Utils *utils = new Utils();
+    QDialog *about = new QDialog(this);
+    QString renameModName;
+    QTableWidgetItem *renameModItem;
+    QString addModName;
 
     void setLaunchIcons();
     void getAllowFiles();
     void getGameVersion();
     void getMount(bool=false);
     bool modSelected();
-
-    std::string moveFile(QString, QString, bool=false);
     void status(std::string, bool=false);
-
-    QString renameModName;
-    QTableWidgetItem *renameModItem;
-    QString addModName;
 
     QIcon war3 = QIcon(":/war3.png");
     QIcon war3mod = QIcon(":/war3_mod.png");
