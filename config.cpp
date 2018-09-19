@@ -17,7 +17,7 @@ Config::Config(Utils* newUtils)
         while(utils->txtReaderNext())
         {
             pair<string, string> setting = utils->line2setting(utils->txtReaderLine);
-            saveSetting(setting.first, setting.second);
+            setSetting(setting.first, setting.second);
         }
 
     //Load defaults
@@ -29,19 +29,19 @@ Config::Config(Utils* newUtils)
         if(gamePath == "") gamePath = utils->regGet(L"InstallPath", REG_SZ);
         if(gamePath == "") gamePath = "C:/Program Files (x86)/Warcraft III";
 
-        saveSetting("GamePath", gamePath);
+        setSetting("GamePath", gamePath);
         configChanged = true;
     }
     if(getSetting("hideEmptyMods") == "")
     {
-        saveSetting("hideEmptyMods", "1");
+        setSetting("hideEmptyMods", "1");
         configChanged = true;
     }
 
     if(configChanged) saveConfig();
 }
 
-void Config::saveSetting(string key, string value)
+void Config::setSetting(string key, string value)
 {
     if(key != "")
     {

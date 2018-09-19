@@ -9,17 +9,12 @@ Settings::Settings(QWidget *parent, Config *newConfig) :
     ui(new Ui::Settings)
 {
     ui->setupUi(this);
-    setWindowFlags( Qt::Dialog |
-                    Qt::MSWindowsFixedSizeDialogHint |
-                    Qt::WindowCloseButtonHint |
-                    Qt::CustomizeWindowHint |
-                    Qt::WindowTitleHint);
+    setWindowFlag(Qt::MSWindowsFixedSizeDialogHint);
 
     config = newConfig;
     utils = config->utils;
 
     connect(ui->dirBtn, SIGNAL(clicked()), this, SLOT(browseGame()));
-    disconnect(ui->buttonBox, SIGNAL(accepted()), this, SLOT(accept()));
     connect(ui->buttonBox, SIGNAL(accepted()), this, SLOT(save()));
 }
 
@@ -44,10 +39,10 @@ void Settings::save()
     }
     string sGamePath = qsGamePath.toStdString();
     utils->valueCorrect("GamePath", &sGamePath);
-    config->saveSetting("GamePath", sGamePath);
+    config->setSetting("GamePath", sGamePath);
 
     string hideEmpty = ui->hideEmptyCbx->isChecked() ? "1" : "0";
-    config->saveSetting("hideEmptyMods", hideEmpty);
+    config->setSetting("hideEmptyMods", hideEmpty);
 
     config->saveConfig();
     accept();

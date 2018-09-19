@@ -28,21 +28,25 @@ SOURCES += \
         mainwindow.cpp \
     config.cpp \
     settings.cpp \
-    utils.cpp
+    utils.cpp \
+    thread.cpp \
+    filestatus.cpp
 
 HEADERS += \
         mainwindow.h \
     settings.h \
     utils.h \
     config.h \
-    utils.h
+    utils.h \
+    thread.h \
+    filestatus.h
 
 FORMS += \
         mainwindow.ui \
-    settings.ui
+    settings.ui \
+    filestatus.ui
 
 RESOURCES += \
-    icons.qrc \
     icons.qrc
 
 DISTFILES +=

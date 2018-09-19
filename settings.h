@@ -12,19 +12,18 @@ class Settings : public QDialog
 {
     Q_OBJECT
 
+    Ui::Settings *ui;
+    Config *config;
+    Utils *utils;
+
+public:
+    explicit Settings(QWidget *parent = nullptr, Config *newConfig = nullptr);
+    ~Settings();
+    void loadSettings();
+
 private slots:
     void browseGame();
     void save();
-
-public:
-    explicit Settings(QWidget *parent = 0, Config* newConfig = 0);
-    ~Settings();
-    Config* config;
-    Utils* utils;
-    void loadSettings();
-
-private:
-    Ui::Settings *ui;
 };
 
 #endif // SETTINGS_H
