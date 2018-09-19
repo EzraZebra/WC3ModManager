@@ -20,7 +20,7 @@ MainWindow:: MainWindow(QWidget *parent) :
 
     //Menubar
     connect(ui->actionSettings, SIGNAL(triggered()), this, SLOT(openSettings()));
-    connect(ui->actionAbout, SIGNAL(triggered()), this, SLOT(about->show()));
+    connect(ui->actionAbout, SIGNAL(triggered()), about, SLOT(show()));
 
     //Tools
     connect(ui->gameBtn, SIGNAL(clicked()), this, SLOT(launchGame()));
