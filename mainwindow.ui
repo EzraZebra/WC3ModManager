@@ -75,7 +75,7 @@
         </property>
         <property name="icon">
          <iconset resource="icons.qrc">
-          <normaloff>:/war3.png</normaloff>:/war3.png</iconset>
+          <normaloff>:/icons/war3.png</normaloff>:/icons/war3.png</iconset>
         </property>
         <property name="iconSize">
          <size>
@@ -122,7 +122,7 @@
         </property>
         <property name="icon">
          <iconset resource="icons.qrc">
-          <normaloff>:/worldedit.png</normaloff>:/worldedit.png</iconset>
+          <normaloff>:/icons/worldedit.png</normaloff>:/icons/worldedit.png</iconset>
         </property>
         <property name="iconSize">
          <size>
@@ -254,6 +254,11 @@
         <verstretch>0</verstretch>
        </sizepolicy>
       </property>
+      <property name="font">
+       <font>
+        <pointsize>10</pointsize>
+       </font>
+      </property>
       <property name="cursor" stdset="0">
        <cursorShape>PointingHandCursor</cursorShape>
       </property>
@@ -284,8 +289,8 @@
       <property name="selectionBehavior">
        <enum>QAbstractItemView::SelectRows</enum>
       </property>
-      <property name="rowCount">
-       <number>0</number>
+      <property name="cornerButtonEnabled">
+       <bool>false</bool>
       </property>
       <property name="columnCount">
        <number>3</number>

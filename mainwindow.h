@@ -19,7 +19,6 @@ class MainWindow : public QMainWindow
     QDialog *about = new QDialog(this);
     QString renameModName;
     QTableWidgetItem *renameModItem;
-    QString addModName;
 
     void setLaunchIcons();
     void getAllowFiles();
@@ -28,12 +27,12 @@ class MainWindow : public QMainWindow
     bool modSelected();
     void status(std::string, bool=false);
 
-    QIcon war3 = QIcon(":/war3.png");
-    QIcon war3mod = QIcon(":/war3_mod.png");
-    QIcon war3x = QIcon(":/war3x.png");
-    QIcon war3xmod = QIcon(":/war3x_mod.png");
-    QIcon worldedit = QIcon(":/worldedit.png");
-    QIcon worldeditmod = QIcon(":/worldedit_mod.png");
+    QIcon war3 = QIcon(":/icons/war3.png");
+    QIcon war3mod = QIcon(":/icons/war3_mod.png");
+    QIcon war3x = QIcon(":/icons/war3x.png");
+    QIcon war3xmod = QIcon(":/icons/war3x_mod.png");
+    QIcon worldedit = QIcon(":/icons/worldedit.png");
+    QIcon worldeditmod = QIcon(":/icons/worldedit_mod.png");
 
 public:
     explicit MainWindow(QWidget *parent = nullptr);
@@ -51,17 +50,17 @@ private slots:
     void setAllowFiles();
     void setGameVersion();
     void mountMod();
-    void mountModReady(int, int, int);
+    void mountModReady(QString, int, int, int);
     void unmountMod();
-    void unmountModReady(int, int, int);
+    void unmountModReady(QString, int, int, int);
     void addMod();
-    void addModReady(int, int, int);
+    void addModReady(QString, int, int, int);
     void openModFolder();
     void renameModStart(QTableWidgetItem*);
     void renameModSave(QTableWidgetItem*);
     void renameModAction();
     void deleteMod();
-    void deleteModReady(int, int, int);
+    void deleteModReady(QString, int, int, int);
 };
 
 #endif // MAINWINDOW_H

@@ -3,10 +3,11 @@
 #include <QDir>
 #include <QDirIterator>
 
-Worker::Worker(Config *newConfig)
+Worker::Worker(Config *newConfig, QString newMod)
 {
     config = newConfig;
     utils = config->utils;
+    mod = newMod;
 }
 
 void Worker::moveFolderWorker(QString src, QString dst, bool savePaths, bool copy)
@@ -28,7 +29,7 @@ void Worker::moveFolderWorker(QString src, QString dst, bool savePaths, bool cop
 
             emit status(relativePath);
 
-            std::pair<int, std::string> result = moveFile2(itMod.filePath(), dst+"/"+relativePath, copy);
+            std::pair<int, std::string> result = moveFile(itMod.filePath(), dst+"/"+relativePath, copy);
             if(result.first == 0)
             {
                 success++;
@@ -55,7 +56,7 @@ void Worker::moveFolderWorker(QString src, QString dst, bool savePaths, bool cop
         }
     }
 
-    emit moveFolderReady(success, failed, missing);
+    emit resultReady(mod, success, failed, missing);
 }
 
 void Worker::deleteFolderWorker(QString folder)
@@ -65,7 +66,6 @@ void Worker::deleteFolderWorker(QString folder)
     QDirIterator itMod(dirMod, QDirIterator::Subdirectories);
 
     int success = 0, failed = 0, missing = 0;
-    bool isFailed;
 
     while(itMod.hasNext())
     {
@@ -73,7 +73,7 @@ void Worker::deleteFolderWorker(QString folder)
 
         emit status(itMod.filePath());
 
-        isFailed = false;
+        bool isFailed = false;
         QFileInfo fiMod(itMod.filePath());
 
         if(fiMod.isFile())
@@ -96,12 +96,10 @@ void Worker::deleteFolderWorker(QString folder)
 
     }
 
-    QDir().rmdir(folder);
-
-    emit deleteFolderReady(success, failed, missing);
+    emit resultReady(mod, success, failed, missing);
 }
 
-void Worker::unmountModWorker(QString mod)
+void Worker::unmountModWorker()
 {
     int success = 0, failed = 0, missing = 0;
 
@@ -113,7 +111,7 @@ void Worker::unmountModWorker(QString mod)
             {
                 emit status(QString::fromStdString(utils->txtReaderLine));
 
-                int result = moveFile2(QString::fromStdString(config->getSetting("MountedTo")+"/"+utils->txtReaderLine),
+                int result = moveFile(QString::fromStdString(config->getSetting("MountedTo")+"/"+utils->txtReaderLine),
                                        QString::fromStdString(config->modPath)+"/"+mod+"/"+QString::fromStdString(utils->txtReaderLine))
                              .first;
                 if(result == 0) success++;
@@ -138,8 +136,8 @@ void Worker::unmountModWorker(QString mod)
         {
             if(utils->txtReaderLine != "")
             {
-                emit status(QFileInfo(QString::fromStdString(utils->txtReaderLine)).filePath());
-                moveFile2(QString::fromStdString(utils->txtReaderLine),
+                emit status(QFileInfo(QString::fromStdString(utils->txtReaderLine)).fileName());
+                moveFile(QString::fromStdString(utils->txtReaderLine),
                          QString::fromStdString(utils->txtReaderLine.substr(0, utils->txtReaderLine.find_last_of("."))));
             }
         }
@@ -154,10 +152,10 @@ void Worker::unmountModWorker(QString mod)
         emit appendStatus(" ");
     }
 
-    emit unmountModReady(success, failed, missing);
+    emit resultReady(mod, success, failed, missing);
 }
 
-std::pair<int, std::string> Worker::moveFile2(QString src, QString dst, bool copy)
+std::pair<int, std::string> Worker::moveFile(QString src, QString dst, bool copy)
 {
     std::string backupPath = "";
     int result = 1;
@@ -206,10 +204,13 @@ std::pair<int, std::string> Worker::moveFile2(QString src, QString dst, bool cop
             }
         }
     }
-    else if(src != "" && !fiSrc.exists()) result = 2;
+    else if(src != "" && !fiSrc.exists())
+    {
+        result = 2;
+        emit status("Missing file: "+src, true);
+    }
 
-    if(result != 0)
-        emit status(result == 2 ? "Missing file: "+src : tr("Failed to ")+tr(copy ? "copy" : "move")+tr(" file: ")+src, true);
+    if(result == 1) emit status("Failed to "+tr(copy ? "copy" : "move")+" file: "+src, true);
 
     return { result, backupPath };
 }
@@ -220,14 +221,12 @@ Controller::Controller(MainWindow *newMw, QString newAction, QString newMod)
     action = newAction;
     mod = newMod;
 
-    worker = new Worker(mw->config);
+    worker = new Worker(mw->config, mod);
     worker->moveToThread(&workerThread);
     connect(&workerThread, &QThread::finished, worker, &QObject::deleteLater);
     connect(this, &Controller::moveFolder, worker, &Worker::moveFolderWorker);
     connect(this, &Controller::unmountMod, worker, &Worker::unmountModWorker);
-    connect(worker, &Worker::moveFolderReady, this, &Controller::result);
-    connect(worker, &Worker::deleteFolderReady, this, &Controller::result);
-    connect(worker, &Worker::unmountModReady, this, &Controller::result);
+    connect(worker, &Worker::resultReady, this, &Controller::result);
     connect(worker, &Worker::status, this, &Controller::status);
     connect(worker, &Worker::appendStatus, this, &Controller::appendStatus);
 
@@ -252,7 +251,7 @@ void Controller::appendStatus(QString msg)
     fileStatus->setText(action+" "+mod+": "+msg);
 }
 
-void Controller::result(int success, int failed, int missing)
+void Controller::result(QString, int success, int failed, int missing)
 {
     disconnect(fileStatus, SIGNAL(rejected()), this, SLOT(cancel()));
     if(failed+missing > 0)

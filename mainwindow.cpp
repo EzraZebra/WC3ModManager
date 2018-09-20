@@ -14,8 +14,22 @@ MainWindow:: MainWindow(QWidget *parent) :
 
     refresh("Setting up UI...");
 
+    //About
     Ui::About uiAbout;
     uiAbout.setupUi(about);
+    QFont aboutFont = QFont(QFontDatabase::applicationFontFamilies(
+                                QFontDatabase::addApplicationFont(":/fonts/FRIZQT_.TTF")).at(0),
+                            12);
+    uiAbout.downloadLbl->setFont(aboutFont);
+    uiAbout.sourceLbl->setFont(aboutFont);
+    uiAbout.hiveLbl->setFont(aboutFont);
+    uiAbout.githubLbl->setFont(aboutFont);
+    uiAbout.titleLbl->setFont(QFont(QFontDatabase::applicationFontFamilies(
+                                        QFontDatabase::addApplicationFont(":/fonts/Warcraft Font.ttf")).at(0),
+                                    26, 75));
+    uiAbout.versionLbl->setFont(QFont(QFontDatabase::applicationFontFamilies(
+                                        QFontDatabase::addApplicationFont(":/fonts/folkard.ttf")).at(0),
+                                      10));
     about->setWindowFlag(Qt::MSWindowsFixedSizeDialogHint);
 
     //Menubar
@@ -105,6 +119,8 @@ void MainWindow::refresh(string statusMsg, QString selectedMod)
             if(selectedMod == dir.dirName()) selectedRow = row;
         }
     }
+    ui->modList->resizeColumnToContents(0);
+    ui->modList->resizeColumnToContents(1);
 
     getMount();
     if(statusMsg == "") status("WC3 Mod Manager refreshed.");
@@ -227,7 +243,7 @@ void MainWindow::mountMod()
                 config->saveConfig();
 
                 Controller *c = new Controller(this, "Mounting", selectedMod);
-                connect(c->worker, &Worker::moveFolderReady, this, &MainWindow::mountModReady);
+                connect(c->worker, &Worker::resultReady, this, &MainWindow::mountModReady);
                 emit c->moveFolder(QString::fromStdString(config->modPath)+"/"+selectedMod, QString::fromStdString(gamePath), true);
                 mounting = true;
             }
@@ -239,14 +255,15 @@ void MainWindow::mountMod()
     if(!mounting) getMount(true);
 }
 
-void MainWindow::mountModReady(int success, int failed, int missing)
+void MainWindow::mountModReady(QString modName, int success, int failed, int missing)
 {
     int totErrors = failed+missing;
-    if(success > 0) status(config->getSetting("Mounted")+" mounted."
-                          +(totErrors > 0 ? " ("+utils->int2string(totErrors)+" errors)" : ""));
+    string sErrors = totErrors > 0 ? " ("+utils->int2string(totErrors)+" errors)" : "";
+
+    if(success > 0) status(modName.toStdString()+" mounted"+sErrors+".");
     else
     {
-        if(totErrors > 0) status("Failed to mount "+config->getSetting("Mounted")+". ("+utils->int2string(totErrors)+" errors)");
+        if(totErrors > 0) status("Failed to mount "+modName.toStdString()+sErrors+".");
         else status("No files to mount.");
 
         config->deleteSetting("Mounted");
@@ -265,14 +282,13 @@ void MainWindow::unmountMod()
     ui->gameBtn->setEnabled(false);
     ui->editorBtn->setEnabled(false);
 
-    string mounted = config->getSetting("Mounted");
-    if(mounted != "")
+    if(config->getSetting("Mounted") != "")
     {
-        status("Unmounting "+mounted+"...");
+        status("Unmounting "+config->getSetting("Mounted")+"...");
 
-        Controller *c = new Controller(this, "Unmounting", QString::fromStdString(mounted));
-        connect(c->worker, &Worker::unmountModReady, this, &MainWindow::unmountModReady);
-        emit c->unmountMod(QString::fromStdString(mounted));
+        Controller *c = new Controller(this, "Unmounting", QString::fromStdString(config->getSetting("Mounted")));
+        connect(c->worker, &Worker::resultReady, this, &MainWindow::unmountModReady);
+        emit c->unmountMod();
     }
     else
     {
@@ -281,7 +297,7 @@ void MainWindow::unmountMod()
     }
 }
 
-void MainWindow::unmountModReady(int success, int failed, int missing)
+void MainWindow::unmountModReady(QString modName, int success, int failed, int missing)
 {
     int totErrors = failed+missing;
     string statusMsg;
@@ -289,8 +305,9 @@ void MainWindow::unmountModReady(int success, int failed, int missing)
     if(success == 0 && totErrors == 0) statusMsg = "No files to unmount.";
     else
     {
-        statusMsg = config->getSetting("Mounted")+" unmounted.";
+        statusMsg = modName.toStdString()+" unmounted";
         if(totErrors > 0) statusMsg += " ("+utils->int2string(totErrors)+" errors)";
+        statusMsg += ".";
     }
     status(statusMsg);
 
@@ -376,9 +393,8 @@ void MainWindow::addMod()
             {
                 status("Adding "+modName.toStdString()+"...");
 
-                addModName = modName;
                 Controller *c = new Controller(this, "Adding", modName);
-                connect(c->worker, &Worker::moveFolderReady, this, &MainWindow::addModReady);
+                connect(c->worker, &Worker::resultReady, this, &MainWindow::addModReady);
                 emit c->moveFolder(qsFolder, qsNewFolder, false, result == 0);
             }
             else status("A mod with that name already exists.", true);
@@ -386,30 +402,32 @@ void MainWindow::addMod()
     }
 }
 
-void MainWindow::addModReady(int success, int failed, int missing)
+void MainWindow::addModReady(QString modName, int success, int failed, int missing)
 {
     int totErrors = failed+missing;
-    string sModName = addModName.toStdString();
+    string sModName = modName.toStdString(),
+           sErrors = totErrors > 0 ? " ("+utils->int2string(totErrors)+"errors)" : "";
 
     if(success == 0)
     {
         if(totErrors == 0) status("No files to add.");
-        else status("Failed to add "+sModName+". ("+utils->int2string(totErrors)+"errors)");
+        else status("Failed to add "+sModName+sErrors+".");
     }
-    else
-    {
-        string statusMsg = sModName+" added.";
-        if(totErrors > 0) statusMsg += " ("+utils->int2string(totErrors)+" errors)";
-
-        refresh(statusMsg, addModName);
-    }
+    else refresh(sModName+" added"+sErrors+".", modName);
 }
 
 void MainWindow::openModFolder()
 {
     if(modSelected())
-        QDesktopServices::openUrl(QUrl::fromLocalFile(
-            QString::fromStdString(config->modPath)+"/"+ui->modList->item(ui->modList->currentRow(), 0)->text()));
+    {
+        QString modName = ui->modList->item(ui->modList->currentRow(), 0)->text();
+        status("Opening "+modName.toStdString()+" folder...");
+
+        if(QDesktopServices::openUrl(QUrl::fromLocalFile(
+           QString::fromStdString(config->modPath)+"/"+modName)))
+            status(modName.toStdString()+" folder opened.");
+        else status("Failed to open "+modName.toStdString()+" folder.");
+    }
 }
 
 void MainWindow::renameModAction()
@@ -473,7 +491,7 @@ void MainWindow::deleteMod()
             status("Deleting "+sModName+"...");
 
             Controller *c = new Controller(this, "Deleting", qsModName);
-            connect(c->worker, &Worker::deleteFolderReady, this, &MainWindow::deleteModReady);
+            connect(c->worker, &Worker::resultReady, this, &MainWindow::deleteModReady);
             emit c->deleteFolder(QString::fromStdString(config->modPath)+"/"+qsModName);
 
             QDir dir(QString::fromStdString(config->modPath)+"/"+qsModName);
@@ -483,23 +501,18 @@ void MainWindow::deleteMod()
     }
 }
 
-void MainWindow::deleteModReady(int success, int failed, int missing)
+void MainWindow::deleteModReady(QString modName, int success, int failed, int missing)
 {
     int totErrors = failed+missing;
-    string sModName = addModName.toStdString();
+    string sModName = modName.toStdString(),
+           sErrors = totErrors > 0 ? " ("+utils->int2string(totErrors)+"errors)" : "";
 
     if(success == 0)
     {
-        if(totErrors == 0) status("No files to delete.");
-        else status("Failed to add "+sModName+". ("+utils->int2string(totErrors)+"errors)");
+        if(totErrors == 0) status("Nothing to delete.");
+        else status("Failed to delete "+sModName+sErrors+".");
     }
-    else
-    {
-        string statusMsg = sModName+" added.";
-        if(totErrors > 0) statusMsg += " ("+utils->int2string(totErrors)+" errors)";
-
-        refresh(statusMsg, addModName);
-    }
+    else refresh(sModName+" deleted"+sErrors+".", modName);
 }
 
 bool MainWindow::modSelected()

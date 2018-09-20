@@ -21,25 +21,24 @@ DEFINES += QT_DEPRECATED_WARNINGS
 # You can also select to disable deprecated APIs only up to a certain version of Qt.
 #DEFINES += QT_DISABLE_DEPRECATED_BEFORE=0x060000    # disables all the APIs deprecated before Qt 6.0.0
 
-RC_ICONS = icon.ico
+RC_ICONS = icons/icon.ico
 
 SOURCES += \
-        main.cpp \
-        mainwindow.cpp \
     config.cpp \
+    filestatus.cpp \
+    main.cpp \
+    mainwindow.cpp \
     settings.cpp \
-    utils.cpp \
     thread.cpp \
-    filestatus.cpp
+    utils.cpp
 
 HEADERS += \
-        mainwindow.h \
-    settings.h \
-    utils.h \
     config.h \
-    utils.h \
+    filestatus.h \
+    mainwindow.h \
+    settings.h \
     thread.h \
-    filestatus.h
+    utils.h
 
 FORMS += \
         mainwindow.ui \
@@ -48,4 +47,5 @@ FORMS += \
     about.ui
 
 RESOURCES += \
-    icons.qrc
+    icons.qrc \
+    fonts.qrc

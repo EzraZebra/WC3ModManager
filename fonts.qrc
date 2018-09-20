@@ -1,0 +1,7 @@
+<RCC>
+    <qresource prefix="/">
+        <file>fonts/folkard.ttf</file>
+        <file>fonts/FRIZQT_.TTF</file>
+        <file>fonts/Warcraft Font.ttf</file>
+    </qresource>
+</RCC>

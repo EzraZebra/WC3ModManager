@@ -9,22 +9,21 @@
 class Worker : public QObject
 {
     Q_OBJECT
-    std::pair<int, std::string> moveFile2(QString, QString, bool=false);
+    std::pair<int, std::string> moveFile(QString, QString, bool=false);
     Config *config;
     Utils *utils;
+    QString mod;
 
 public:
-    Worker(Config *);
+    Worker(Config *, QString);
 
 public slots:
     void moveFolderWorker(QString, QString, bool=false, bool=false);
     void deleteFolderWorker(QString);
-    void unmountModWorker(QString);
+    void unmountModWorker();
 
 signals:
-    void moveFolderReady(int, int, int);
-    void deleteFolderReady(int, int, int);
-    void unmountModReady(int, int, int);
+    void resultReady(QString, int, int, int);
     void status(QString, bool=false);
     void appendStatus(QString);
 };
@@ -36,16 +35,16 @@ class Controller : public QObject
     QThread workerThread;
     MainWindow *mw;
     FileStatus *fileStatus;
+    QString action;
+    QString mod;
 
 public:
     Controller(MainWindow *mw, QString action, QString mod);
     ~Controller();
     Worker *worker;
-    QString action;
-    QString mod;
 
 private slots:
-    void result(int, int, int);
+    void result(QString, int, int, int);
     void status(QString, bool=false);
     void appendStatus(QString);
     void cancel();
@@ -53,7 +52,7 @@ private slots:
 signals:
     void moveFolder(QString, QString, bool=false, bool=false);
     void deleteFolder(QString);
-    void unmountMod(QString);
+    void unmountMod();
 };
 
 #endif // THREAD_H

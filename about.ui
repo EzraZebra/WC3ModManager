@@ -43,7 +43,7 @@
   <property name="modal">
    <bool>false</bool>
   </property>
-  <widget class="QLabel" name="label">
+  <widget class="QLabel" name="titleLbl">
    <property name="geometry">
     <rect>
      <x>10</x>
@@ -54,7 +54,6 @@
    </property>
    <property name="font">
     <font>
-     <family>WarCraft Font</family>
      <pointsize>26</pointsize>
      <weight>75</weight>
      <bold>true</bold>
@@ -78,7 +77,7 @@
     <number>0</number>
    </property>
   </widget>
-  <widget class="QLabel" name="label_2">
+  <widget class="QLabel" name="versionLbl">
    <property name="geometry">
     <rect>
      <x>310</x>
@@ -89,7 +88,6 @@
    </property>
    <property name="font">
     <font>
-     <family>Folkard</family>
      <pointsize>10</pointsize>
      <stylestrategy>PreferAntialias</stylestrategy>
     </font>
@@ -104,7 +102,7 @@
     <set>Qt::AlignLeading|Qt::AlignLeft|Qt::AlignTop</set>
    </property>
   </widget>
-  <widget class="QWidget" name="">
+  <widget class="QWidget" name="layoutWidget">
    <property name="geometry">
     <rect>
      <x>20</x>
@@ -131,7 +129,7 @@
          <number>0</number>
         </property>
         <item>
-         <widget class="QLabel" name="label_3">
+         <widget class="QLabel" name="downloadLbl">
           <property name="minimumSize">
            <size>
             <width>0</width>
@@ -146,7 +144,6 @@
           </property>
           <property name="font">
            <font>
-            <family>Friz Quadrata TT</family>
             <pointsize>12</pointsize>
            </font>
           </property>
@@ -156,7 +153,7 @@
          </widget>
         </item>
         <item>
-         <widget class="QLabel" name="label_4">
+         <widget class="QLabel" name="sourceLbl">
           <property name="minimumSize">
            <size>
             <width>0</width>
@@ -171,7 +168,6 @@
           </property>
           <property name="font">
            <font>
-            <family>Friz Quadrata TT</family>
             <pointsize>12</pointsize>
            </font>
           </property>
@@ -188,7 +184,7 @@
          <number>0</number>
         </property>
         <item>
-         <widget class="QLabel" name="label_5">
+         <widget class="QLabel" name="hiveLbl">
           <property name="minimumSize">
            <size>
             <width>0</width>
@@ -203,7 +199,6 @@
           </property>
           <property name="font">
            <font>
-            <family>Friz Quadrata TT</family>
             <pointsize>12</pointsize>
            </font>
           </property>
@@ -222,7 +217,7 @@
          </widget>
         </item>
         <item>
-         <widget class="QLabel" name="label_6">
+         <widget class="QLabel" name="githubLbl">
           <property name="minimumSize">
            <size>
             <width>0</width>
@@ -237,7 +232,6 @@
           </property>
           <property name="font">
            <font>
-            <family>Friz Quadrata TT</family>
             <pointsize>12</pointsize>
            </font>
           </property>
@@ -288,7 +282,7 @@
        </spacer>
       </item>
       <item>
-       <widget class="QPushButton" name="pushButton">
+       <widget class="QPushButton" name="closeBtn">
         <property name="text">
          <string>Close</string>
         </property>
@@ -302,7 +296,7 @@
  <resources/>
  <connections>
   <connection>
-   <sender>pushButton</sender>
+   <sender>closeBtn</sender>
    <signal>clicked()</signal>
    <receiver>About</receiver>
    <slot>close()</slot>
