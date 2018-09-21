@@ -10,26 +10,48 @@ Worker::Worker(Config *newConfig, QString newMod)
     mod = newMod;
 }
 
-void Worker::moveFolderWorker(QString src, QString dst, bool savePaths, bool copy)
+void Worker::scanModWorker(int row)
 {
-    QDir dirMod(src);
+    double modSize = 0;
+    int fileCount = 0;
+
+    QDir dirMod(QString::fromStdString(config->modPath)+"/"+mod);
     dirMod.setFilter(QDir::NoDotAndDotDot|QDir::Files|QDir::NoSymLinks);
     QDirIterator itMod(dirMod, QDirIterator::Subdirectories);
+    if(itMod.hasNext())
+        do
+        {
+            itMod.next();
+            modSize += itMod.fileInfo().size();
+            fileCount++;
+
+            emit scanModUpdate(row,
+                               QString("%0 MB").arg(round(modSize/1024/1024*100)/100),
+                               QString("%0 files").arg(fileCount));
+        } while(itMod.hasNext());
+    else emit scanModUpdate(row, "0 MB", "0 files");
+}
+
+void Worker::moveFolderWorker(QString src, QString dst, bool savePaths, bool copy)
+{
+    QDir dirSrc(src);
+    dirSrc.setFilter(QDir::NoDotAndDotDot|QDir::Files|QDir::NoSymLinks);
+    QDirIterator itSrc(dirSrc, QDirIterator::Subdirectories);
 
     int success = 0, failed = 0, missing = 0;
 
-    if(itMod.hasNext())
+    if(itSrc.hasNext())
     {
         std::ofstream out_files, backup_files;
 
         do
         {
-            itMod.next();
-            QString relativePath = itMod.filePath().remove(src+"/");
+            itSrc.next();
+            QString relativePath = itSrc.filePath().remove(src+"/");
 
             emit status(relativePath);
 
-            std::pair<int, std::string> result = moveFile(itMod.filePath(), dst+"/"+relativePath, copy);
+            std::pair<int, std::string> result = moveFile(itSrc.filePath(), dst+"/"+relativePath, copy);
             if(result.first == 0)
             {
                 success++;
@@ -47,7 +69,7 @@ void Worker::moveFolderWorker(QString src, QString dst, bool savePaths, bool cop
                 if(!backup_files.is_open()) backup_files.open(config->backupFilesPath.c_str());
                 backup_files << result.second << std::endl;
             }
-        } while(itMod.hasNext());
+        } while(itSrc.hasNext());
 
         if(savePaths)
         {
@@ -59,9 +81,9 @@ void Worker::moveFolderWorker(QString src, QString dst, bool savePaths, bool cop
     emit resultReady(mod, success, failed, missing);
 }
 
-void Worker::deleteFolderWorker(QString folder)
+void Worker::deleteModWorker()
 {
-    QDir dirMod(folder);
+    QDir dirMod(QString::fromStdString(config->modPath)+"/"+mod);
     dirMod.setFilter(QDir::NoDotAndDotDot|QDir::AllEntries);
     QDirIterator itMod(dirMod, QDirIterator::Subdirectories);
 
@@ -71,27 +93,27 @@ void Worker::deleteFolderWorker(QString folder)
     {
         itMod.next();
 
-        emit status(itMod.filePath());
-
+        QString filePath = itMod.filePath();
         bool isFailed = false;
-        QFileInfo fiMod(itMod.filePath());
 
-        if(fiMod.isFile())
+        emit status(filePath);
+
+        if(itMod.fileInfo().isFile())
         {
-            if(QFile(itMod.filePath()).remove())  success++;
+            if(QFile(filePath).remove())  success++;
             else isFailed = true;
         }
-        else if(!fiMod.exists())
+        else if(!itMod.fileInfo().exists())
         {
             missing++;
-            emit status("Missing file: "+itMod.filePath()+".", true);
+            emit status("Missing file: "+filePath+".", true);
         }
         else isFailed = true;
 
         if(isFailed)
         {
             failed++;
-            emit status("Failed to delete file: "+itMod.filePath(), true);
+            emit status("Failed to delete file: "+filePath, true);
         }
 
     }
@@ -112,7 +134,7 @@ void Worker::unmountModWorker()
                 emit status(QString::fromStdString(utils->txtReaderLine));
 
                 int result = moveFile(QString::fromStdString(config->getSetting("MountedTo")+"/"+utils->txtReaderLine),
-                                       QString::fromStdString(config->modPath)+"/"+mod+"/"+QString::fromStdString(utils->txtReaderLine))
+                                      QString::fromStdString(config->modPath)+"/"+mod+"/"+QString::fromStdString(utils->txtReaderLine))
                              .first;
                 if(result == 0) success++;
                 else if(result == 2) missing++;
@@ -164,8 +186,7 @@ std::pair<int, std::string> Worker::moveFile(QString src, QString dst, bool copy
     if(fiSrc.isFile())
     {
         //if dst exists, make backup
-        QFileInfo fiDst(dst);
-        if(fiDst.exists())
+        if(QFileInfo(dst).exists())
         {
             QString qsBackupPath = dst+".wmmbackup";
             QString newBackupPath = qsBackupPath;
@@ -179,7 +200,7 @@ std::pair<int, std::string> Worker::moveFile(QString src, QString dst, bool copy
             if(QFile::rename(dst, newBackupPath)) backupPath = newBackupPath.toStdString();
             else emit status("Failed to create backup of "+dst, true);
         }
-        else QDir().mkpath(fiDst.absolutePath());
+        else QDir().mkpath(QFileInfo(dst).absolutePath());
 
         if(copy ? QFile::copy(src, dst) : QFile::rename(src, dst))
         {
@@ -188,16 +209,16 @@ std::pair<int, std::string> Worker::moveFile(QString src, QString dst, bool copy
             //Delete empty folders from src
             if(!copy)
             {
-                QDir dirMod(fiSrc.absolutePath());
-                dirMod.setFilter(QDir::NoDotAndDotDot|QDir::AllEntries);
+                QDir dirEmpty(fiSrc.absolutePath());
+                dirEmpty.setFilter(QDir::NoDotAndDotDot|QDir::AllEntries);
 
-                while(dirMod.count() == 0) {
-                    QString delPath = dirMod.absolutePath();
-                    dirMod.cdUp();
+                while(dirEmpty.count() == 0) {
+                    QString delPath = dirEmpty.absolutePath();
+                    dirEmpty.cdUp();
 
                     if(     delPath.toStdString() != config->modPath
                         &&  delPath.toStdString() != config->getSetting("GamePath")
-                        &&  dirMod.absolutePath().toStdString() != config->modPath)
+                        &&  dirEmpty.absolutePath().toStdString() != config->modPath)
                         QDir().rmdir(delPath);
                     else break;
                 }
@@ -215,25 +236,32 @@ std::pair<int, std::string> Worker::moveFile(QString src, QString dst, bool copy
     return { result, backupPath };
 }
 
-Controller::Controller(MainWindow *newMw, QString newAction, QString newMod)
+Controller::Controller(MainWindow *newMw, QString newAction, QString newMod, bool newStatus)
 {
     mw = newMw;
     action = newAction;
     mod = newMod;
+    showStatus = newStatus;
 
     worker = new Worker(mw->config, mod);
     worker->moveToThread(&workerThread);
     connect(&workerThread, &QThread::finished, worker, &QObject::deleteLater);
+    connect(this, &Controller::scanMod, worker, &Worker::scanModWorker);
     connect(this, &Controller::moveFolder, worker, &Worker::moveFolderWorker);
+    connect(this, &Controller::deleteMod, worker, &Worker::deleteModWorker);
     connect(this, &Controller::unmountMod, worker, &Worker::unmountModWorker);
-    connect(worker, &Worker::resultReady, this, &Controller::result);
-    connect(worker, &Worker::status, this, &Controller::status);
-    connect(worker, &Worker::appendStatus, this, &Controller::appendStatus);
 
-    fileStatus = new FileStatus(mw);
-    connect(fileStatus, SIGNAL(rejected()), this, SLOT(cancel()));
-    fileStatus->setText(action+" "+mod+":");
-    fileStatus->setWindowTitle(action+" "+mod+"...");
+    if(showStatus)
+    {
+        connect(worker, &Worker::status, this, &Controller::status);
+        connect(worker, &Worker::appendStatus, this, &Controller::appendStatus);
+        connect(worker, &Worker::resultReady, this, &Controller::result);
+
+        fileStatus = new FileStatus(mw);
+        connect(fileStatus, SIGNAL(rejected()), this, SLOT(cancel()));
+        fileStatus->setText(action+" "+mod+":");
+        fileStatus->setWindowTitle(action+" "+mod+"...");
+    }
 
     workerThread.start();
 }

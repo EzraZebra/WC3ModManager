@@ -45,6 +45,7 @@ private:
 private slots:
     void openSettings();
     void refresh(std::string="", QString="");
+    void scanModUpdate(int, QString, QString);
     void launchGame();
     void launchEditor();
     void setAllowFiles();

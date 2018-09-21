@@ -76,60 +76,63 @@ void MainWindow::refresh(string statusMsg, QString selectedMod)
     int selectedRow = -1;
     ui->modList->clearContents();
     ui->modList->setRowCount(0);
-    QDir dir(QString::fromStdString(config->modPath));
-    dir.setFilter(QDir::NoDotAndDotDot|QDir::Dirs|QDir::NoSymLinks);
-    QDirIterator it(dir);
-    while (it.hasNext())
+    QDir dirMods(QString::fromStdString(config->modPath));
+    dirMods.setFilter(QDir::NoDotAndDotDot|QDir::Dirs|QDir::NoSymLinks);
+    QDirIterator itMods(dirMods);
+    while (itMods.hasNext())
     {
-        it.next();
-        QString qsModSize, qsFileCount;
+        itMods.next();
+        QString qsModSize = "0 MB", qsFileCount = "0 files",
+                modName = itMods.fileName();
+        int row = ui->modList->rowCount();
+        if(selectedMod == modName) selectedRow = row;
 
-        status("Scanning "+it.fileName().toStdString()+"...");
-        if(it.fileName().toStdString() == config->getSetting("Mounted"))
+        ui->modList->insertRow(row);
+
+        if(modName.toStdString() == config->getSetting("Mounted"))
         {
             qsModSize = QString::fromStdString(config->getSetting("MountedSize"));
             qsFileCount = QString::fromStdString(config->getSetting("MountedCount"));
         }
-        else
+        else ui->modList->hideRow(row);
+
+        ui->modList->setItem(row, 0, new QTableWidgetItem(modName));
+        ui->modList->setItem(row, 1, new QTableWidgetItem(qsModSize));
+        ui->modList->setItem(row, 2, new QTableWidgetItem(qsFileCount));
+
+        if(modName.toStdString() != config->getSetting("Mounted"))
         {
-            double modSize = 0;
-            int fileCount = 0;
-            QDir dir2(it.filePath());
-            dir2.setFilter(QDir::NoDotAndDotDot|QDir::Files|QDir::NoSymLinks);
-            QDirIterator it2(dir2, QDirIterator::Subdirectories);
-            while (it2.hasNext())
-            {
-                it2.next();
-                modSize += it2.fileInfo().size();
-                fileCount++;
-            }
-
-            qsModSize = QString("%0 MB").arg(round(modSize/1024/1024*100)/100);
-            qsFileCount = QString("%0 files").arg(fileCount);
+            Controller *c = new Controller(this, "Scanning", modName);
+            connect(c->worker, &Worker::scanModUpdate, this, &MainWindow::scanModUpdate);
+            emit c->scanMod(row);
         }
-
-        if(qsFileCount != "0 files" || config->getSetting("hideEmptyMods") != "1")
-        {
-            int row = ui->modList->rowCount();
-            ui->modList->insertRow(row);
-            ui->modList->setItem(row, 0, new QTableWidgetItem(it.fileName()));
-            ui->modList->setItem(row, 1, new QTableWidgetItem(qsModSize));
-            ui->modList->setItem(row, 2, new QTableWidgetItem(qsFileCount));
-
-            if(selectedMod == dir.dirName()) selectedRow = row;
-        }
+        else ui->modList->resizeColumnToContents(0);
     }
-    ui->modList->resizeColumnToContents(0);
-    ui->modList->resizeColumnToContents(1);
 
     getMount();
+
     if(statusMsg == "") status("WC3 Mod Manager refreshed.");
     else status(statusMsg);
+
     setEnabled(true);
     if(selectedRow >= 0 && selectedRow < ui->modList->rowCount())
     {
         ui->modList->selectRow(selectedRow);
         ui->modList->setFocus();
+    }
+}
+
+void MainWindow::scanModUpdate(int row, QString modSize, QString fileCount)
+{
+    if(fileCount != "0 files" || modSize != "0 MB" || config->getSetting("hideEmptyMods") != "1")
+    {
+        if(modSize != "0 MB") ui->modList->item(row, 1)->setText(modSize);
+        if(fileCount != "0 files") ui->modList->item(row, 2)->setText(fileCount);
+        if(ui->modList->isRowHidden(row))
+        {
+            ui->modList->showRow(row);
+            ui->modList->resizeColumnToContents(0);
+        }
     }
 }
 
@@ -492,11 +495,7 @@ void MainWindow::deleteMod()
 
             Controller *c = new Controller(this, "Deleting", qsModName);
             connect(c->worker, &Worker::resultReady, this, &MainWindow::deleteModReady);
-            emit c->deleteFolder(QString::fromStdString(config->modPath)+"/"+qsModName);
-
-            QDir dir(QString::fromStdString(config->modPath)+"/"+qsModName);
-            if(dir.removeRecursively()) refresh(sModName+" deleted.");
-            else refresh("Failed to delete "+sModName+".", qsModName);
+            emit c->deleteMod();
         }
     }
 }
