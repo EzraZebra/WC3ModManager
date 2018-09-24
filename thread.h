@@ -17,18 +17,19 @@ class Worker : public QObject
 
 public:
     Worker(Config *, QString);
+    bool abort = false;
 
 public slots:
     void scanModWorker(int);
     void moveFolderWorker(QString, QString, bool=false, bool=false);
-    void unmountModWorker();
+    void unmountModWorker(bool=false);
     void deleteModWorker();
 
 signals:
-    void resultReady(QString, int, int, int);
+    void resultReady(QString, int, int, int, bool, bool=false);
     void scanModUpdate(int, QString, QString);
     void status(QString, bool=false);
-    void appendStatus(QString);
+    void appendAction(QString);
 };
 
 class Controller : public QObject
@@ -37,7 +38,6 @@ class Controller : public QObject
 
     QThread workerThread;
     MainWindow *mw;
-    FileStatus *fileStatus;
     QString action;
     QString mod;
     bool showStatus;
@@ -46,18 +46,19 @@ public:
     Controller(MainWindow *, QString, QString, bool=true);
     ~Controller();
     Worker *worker;
+    FileStatus *fileStatus;
 
 private slots:
-    void result(QString, int, int, int);
+    void result(QString, int, int, int, bool, bool=false);
     void status(QString, bool=false);
-    void appendStatus(QString);
-    void cancel();
+    void appendAction(QString);
+    void abort();
 
 signals:
     void scanMod(int);
     void moveFolder(QString, QString, bool=false, bool=false);
     void deleteMod();
-    void unmountMod();
+    void unmountMod(bool=false);
 };
 
 #endif // THREAD_H

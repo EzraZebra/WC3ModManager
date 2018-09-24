@@ -34,13 +34,13 @@ void Worker::scanModWorker(int row)
 
 void Worker::moveFolderWorker(QString src, QString dst, bool savePaths, bool copy)
 {
+    int success = 0, failed = 0, missing = 0;
+
     QDir dirSrc(src);
     dirSrc.setFilter(QDir::NoDotAndDotDot|QDir::Files|QDir::NoSymLinks);
     QDirIterator itSrc(dirSrc, QDirIterator::Subdirectories);
 
-    int success = 0, failed = 0, missing = 0;
-
-    if(itSrc.hasNext())
+    if(!abort && itSrc.hasNext())
     {
         std::ofstream out_files, backup_files;
 
@@ -69,7 +69,7 @@ void Worker::moveFolderWorker(QString src, QString dst, bool savePaths, bool cop
                 if(!backup_files.is_open()) backup_files.open(config->backupFilesPath.c_str());
                 backup_files << result.second << std::endl;
             }
-        } while(itSrc.hasNext());
+        } while(!abort && itSrc.hasNext());
 
         if(savePaths)
         {
@@ -78,7 +78,7 @@ void Worker::moveFolderWorker(QString src, QString dst, bool savePaths, bool cop
         }
     }
 
-    emit resultReady(mod, success, failed, missing);
+    emit resultReady(mod, success, failed, missing, abort);
 }
 
 void Worker::deleteModWorker()
@@ -89,7 +89,7 @@ void Worker::deleteModWorker()
 
     int success = 0, failed = 0, missing = 0;
 
-    while(itMod.hasNext())
+    while(!abort && itMod.hasNext())
     {
         itMod.next();
 
@@ -118,63 +118,77 @@ void Worker::deleteModWorker()
 
     }
 
-    emit resultReady(mod, success, failed, missing);
+    emit resultReady(mod, success, failed, missing, abort);
 }
 
-void Worker::unmountModWorker()
+void Worker::unmountModWorker(bool force)
 {
     int success = 0, failed = 0, missing = 0;
 
-    if(utils->txtReaderStart(config->outFilesPath))
+    if(force) emit appendAction("lala");
+
+    if(!abort && utils->txtReaderStart(config->outFilesPath))
     {
-        while(utils->txtReaderNext())
+        std::string newOutFiles = "";
+        while(!abort && utils->txtReaderNext())
         {
             if(utils->txtReaderLine != "")
             {
-                emit status(QString::fromStdString(utils->txtReaderLine));
+                QString qsLine = QString::fromStdString(utils->txtReaderLine);
+                emit status(qsLine);
 
-                int result = moveFile(QString::fromStdString(config->getSetting("MountedTo")+"/"+utils->txtReaderLine),
-                                      QString::fromStdString(config->modPath)+"/"+mod+"/"+QString::fromStdString(utils->txtReaderLine))
+                int result = moveFile(QString::fromStdString(config->getSetting("MountedTo"))+"/"+qsLine,
+                                      QString::fromStdString(config->modPath)+"/"+mod+"/"+qsLine)
                              .first;
                 if(result == 0) success++;
-                else if(result == 2) missing++;
-                else failed++;
+                else
+                {
+                    if(!force) newOutFiles += utils->txtReaderLine+"\n";
+                    if(result == 2) missing++;
+                    else failed++;
+                }
             }
         }
 
-        if(success > 0)
-        {
-            std::ofstream out_files(config->outFilesPath.c_str());
-            out_files << "";
-            out_files.close();
-        }
+        std::ofstream out_files(config->outFilesPath.c_str());
+        out_files << newOutFiles;
+        out_files.close();
     }
 
-    if(utils->txtReaderStart(config->backupFilesPath))
+    if(!abort && utils->txtReaderStart(config->backupFilesPath))
     {
-        emit appendStatus("restoring backups...");
+        emit appendAction("restoring backups...");
 
-        while(utils->txtReaderNext())
+        std::string newBackupFiles = "";
+        while(!abort && utils->txtReaderNext())
         {
             if(utils->txtReaderLine != "")
             {
-                emit status(QFileInfo(QString::fromStdString(utils->txtReaderLine)).fileName());
-                moveFile(QString::fromStdString(utils->txtReaderLine),
-                         QString::fromStdString(utils->txtReaderLine.substr(0, utils->txtReaderLine.find_last_of("."))));
+                QString qsLine = QString::fromStdString(utils->txtReaderLine);
+                emit status(QFileInfo(qsLine).fileName());
+                int result = moveFile(qsLine,
+                                      qsLine.chopped(qsLine.lastIndexOf(".")))
+                             .first;
+
+                if(result == 0) success++;
+                else
+                {
+                    if(!force) newBackupFiles += utils->txtReaderLine+"\n";
+                    if(result == 2) missing++;
+                    else failed++;
+                }
+
             }
         }
 
-        if(success > 0)
-        {
-            std::ofstream backup_files(config->backupFilesPath.c_str());
-            backup_files << "";
-            backup_files.close();
-        }
+        std::ofstream backup_files(config->backupFilesPath.c_str());
+        backup_files << newBackupFiles;
+        backup_files.close();
 
-        emit appendStatus(" ");
+        emit appendAction(" ");
     }
 
-    emit resultReady(mod, success, failed, missing);
+    emit resultReady(mod, success, failed, missing, abort, force);
 }
 
 std::pair<int, std::string> Worker::moveFile(QString src, QString dst, bool copy)
@@ -198,13 +212,17 @@ std::pair<int, std::string> Worker::moveFile(QString src, QString dst, bool copy
             }
 
             if(QFile::rename(dst, newBackupPath)) backupPath = newBackupPath.toStdString();
-            else emit status("Failed to create backup of "+dst, true);
+            else
+            {
+                emit status("Failed to create backup of "+dst+"\n-->Skipping file: "+src, true);
+                return { 1, "" };
+            }
         }
         else QDir().mkpath(QFileInfo(dst).absolutePath());
 
         if(copy ? QFile::copy(src, dst) : QFile::rename(src, dst))
         {
-            result = 0;
+            result = rand()%(3);
 
             //Delete empty folders from src
             if(!copy)
@@ -254,11 +272,12 @@ Controller::Controller(MainWindow *newMw, QString newAction, QString newMod, boo
     if(showStatus)
     {
         connect(worker, &Worker::status, this, &Controller::status);
-        connect(worker, &Worker::appendStatus, this, &Controller::appendStatus);
+        connect(worker, &Worker::appendAction, this, &Controller::appendAction);
         connect(worker, &Worker::resultReady, this, &Controller::result);
 
         fileStatus = new FileStatus(mw);
-        connect(fileStatus, SIGNAL(rejected()), this, SLOT(cancel()));
+        connect(fileStatus, SIGNAL(rejected()), this, SLOT(abort()));
+        connect(fileStatus, SIGNAL(forceUnmount(bool)), worker, SLOT(unmountModWorker(bool)));
         fileStatus->setText(action+" "+mod+":");
         fileStatus->setWindowTitle(action+" "+mod+"...");
     }
@@ -268,36 +287,46 @@ Controller::Controller(MainWindow *newMw, QString newAction, QString newMod, boo
 
 void Controller::status(QString msg, bool error)
 {
-    if(!fileStatus->isVisible()) fileStatus->show();
-
     if(error) fileStatus->addErrorText(msg);
     else fileStatus->setInfoText(msg);
+
+    if(!fileStatus->isVisible()) fileStatus->show();
 }
 
-void Controller::appendStatus(QString msg)
+void Controller::appendAction(QString msg)
 {
     fileStatus->setText(action+" "+mod+": "+msg);
 }
 
-void Controller::result(QString, int success, int failed, int missing)
+void Controller::result(QString, int success, int failed, int missing, bool abort, bool force)
 {
-    disconnect(fileStatus, SIGNAL(rejected()), this, SLOT(cancel()));
-    if(failed+missing > 0)
+    disconnect(fileStatus, SIGNAL(rejected()), this, SLOT(abort()));
+
+    int totErrors = failed+missing;
+    if(abort || totErrors > 0)
     {
+        fileStatus->result(!force && !abort && action == "Unmounting" && success == 0 && totErrors > 0);
+        if(!abort)
+        {
+            if(!force && totErrors > 0 && (action == "Unmounting" || success <= 0))
+                appendAction("failed.");
+            else appendAction("done.");
+        }
+
         QString msg = QString("%0 files succeeded").arg(success);
         if(failed > 0) msg += QString(", %0 files failed").arg(failed);
-        if(missing > 0) msg += QString(", %2 files missing").arg(failed).arg(missing);
+        if(missing > 0) msg += QString(", %0 files missing").arg(missing);
         msg += ".";
 
-        fileStatus->result(msg);
-        if(!fileStatus->isVisible()) fileStatus->show();
+        status(msg);
     }
     else this->~Controller();
 }
 
-void Controller::cancel()
+void Controller::abort()
 {
-    std::cout << "cancel" << std::endl;
+    worker->abort = true;
+    appendAction("aborted.");
 }
 
 Controller::~Controller()

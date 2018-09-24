@@ -289,15 +289,18 @@
       <property name="selectionBehavior">
        <enum>QAbstractItemView::SelectRows</enum>
       </property>
+      <property name="iconSize">
+       <size>
+        <width>16</width>
+        <height>16</height>
+       </size>
+      </property>
       <property name="cornerButtonEnabled">
        <bool>false</bool>
       </property>
       <property name="columnCount">
        <number>3</number>
       </property>
-      <attribute name="horizontalHeaderCascadingSectionResizes">
-       <bool>true</bool>
-      </attribute>
       <attribute name="horizontalHeaderMinimumSectionSize">
        <number>100</number>
       </attribute>
@@ -418,7 +421,7 @@
   </action>
   <action name="actionAbout">
    <property name="text">
-    <string>A&amp;bout</string>
+    <string>&amp;About</string>
    </property>
   </action>
   <action name="actionMount">

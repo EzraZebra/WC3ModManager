@@ -16,7 +16,6 @@ class MainWindow : public QMainWindow
 
     Ui::MainWindow *ui;
     Utils *utils = new Utils();
-    QDialog *about = new QDialog(this);
     QString renameModName;
     QTableWidgetItem *renameModItem;
 
@@ -26,6 +25,9 @@ class MainWindow : public QMainWindow
     void getMount(bool=false);
     bool modSelected();
     void status(std::string, bool=false);
+    std::string result2statusMsg(std::string, std::string, int, int, int, bool=false, bool=false);
+    std::string result2errorMsg(std::string, int, int, int, bool=false, bool=false);
+    std::map<std::string, std::string> action_dict(std::string);
 
     QIcon war3 = QIcon(":/icons/war3.png");
     QIcon war3mod = QIcon(":/icons/war3_mod.png");
@@ -33,6 +35,7 @@ class MainWindow : public QMainWindow
     QIcon war3xmod = QIcon(":/icons/war3x_mod.png");
     QIcon worldedit = QIcon(":/icons/worldedit.png");
     QIcon worldeditmod = QIcon(":/icons/worldedit_mod.png");
+    QIcon warningIcon = QIcon();
 
 public:
     explicit MainWindow(QWidget *parent = nullptr);
@@ -40,7 +43,7 @@ public:
     Config *config = new Config(utils);
 
 private:
-    Settings *settings = new Settings(this, config); //must be initialized after config
+    Settings *settings; //must be initialized after config
 
 private slots:
     void openSettings();
@@ -51,17 +54,17 @@ private slots:
     void setAllowFiles();
     void setGameVersion();
     void mountMod();
-    void mountModReady(QString, int, int, int);
+    void mountModReady(QString, int, int, int, bool=false);
     void unmountMod();
-    void unmountModReady(QString, int, int, int);
+    void unmountModReady(QString, int, int, int, bool=false, bool=false);
     void addMod();
-    void addModReady(QString, int, int, int);
+    void addModReady(QString, int, int, int, bool=false);
     void openModFolder();
     void renameModStart(QTableWidgetItem*);
     void renameModSave(QTableWidgetItem*);
     void renameModAction();
     void deleteMod();
-    void deleteModReady(QString, int, int, int);
+    void deleteModReady(QString, int, int, int, bool=false);
 };
 
 #endif // MAINWINDOW_H

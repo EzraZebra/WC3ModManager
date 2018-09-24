@@ -54,6 +54,7 @@
    </property>
    <property name="font">
     <font>
+     <family>WarCraft Font</family>
      <pointsize>26</pointsize>
      <weight>75</weight>
      <bold>true</bold>
@@ -88,6 +89,7 @@
    </property>
    <property name="font">
     <font>
+     <family>Folkard</family>
      <pointsize>10</pointsize>
      <stylestrategy>PreferAntialias</stylestrategy>
     </font>
@@ -102,12 +104,12 @@
     <set>Qt::AlignLeading|Qt::AlignLeft|Qt::AlignTop</set>
    </property>
   </widget>
-  <widget class="QWidget" name="layoutWidget">
+  <widget class="QWidget" name="">
    <property name="geometry">
     <rect>
-     <x>20</x>
-     <y>60</y>
-     <width>321</width>
+     <x>21</x>
+     <y>61</y>
+     <width>312</width>
      <height>77</height>
     </rect>
    </property>
@@ -144,6 +146,7 @@
           </property>
           <property name="font">
            <font>
+            <family>Friz Quadrata TT</family>
             <pointsize>12</pointsize>
            </font>
           </property>
@@ -168,6 +171,7 @@
           </property>
           <property name="font">
            <font>
+            <family>Friz Quadrata TT</family>
             <pointsize>12</pointsize>
            </font>
           </property>
@@ -199,6 +203,7 @@
           </property>
           <property name="font">
            <font>
+            <family>Friz Quadrata TT</family>
             <pointsize>12</pointsize>
            </font>
           </property>
@@ -232,6 +237,7 @@
           </property>
           <property name="font">
            <font>
+            <family>Friz Quadrata TT</family>
             <pointsize>12</pointsize>
            </font>
           </property>
@@ -276,7 +282,7 @@
         <property name="sizeHint" stdset="0">
          <size>
           <width>218</width>
-          <height>20</height>
+          <height>23</height>
          </size>
         </property>
        </spacer>

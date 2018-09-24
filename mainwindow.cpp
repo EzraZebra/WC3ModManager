@@ -12,24 +12,15 @@ MainWindow:: MainWindow(QWidget *parent) :
 {
     ui->setupUi(this);
 
+    //Icons
+    warningIcon.addPixmap(QPixmap(":/icons/warning.png"), QIcon::Disabled);
+
     refresh("Setting up UI...");
 
     //About
+    QDialog *about = new QDialog(this);
     Ui::About uiAbout;
     uiAbout.setupUi(about);
-    QFont aboutFont = QFont(QFontDatabase::applicationFontFamilies(
-                                QFontDatabase::addApplicationFont(":/fonts/FRIZQT_.TTF")).at(0),
-                            12);
-    uiAbout.downloadLbl->setFont(aboutFont);
-    uiAbout.sourceLbl->setFont(aboutFont);
-    uiAbout.hiveLbl->setFont(aboutFont);
-    uiAbout.githubLbl->setFont(aboutFont);
-    uiAbout.titleLbl->setFont(QFont(QFontDatabase::applicationFontFamilies(
-                                        QFontDatabase::addApplicationFont(":/fonts/Warcraft Font.ttf")).at(0),
-                                    26, 75));
-    uiAbout.versionLbl->setFont(QFont(QFontDatabase::applicationFontFamilies(
-                                        QFontDatabase::addApplicationFont(":/fonts/folkard.ttf")).at(0),
-                                      10));
     about->setWindowFlag(Qt::MSWindowsFixedSizeDialogHint);
 
     //Menubar
@@ -61,25 +52,26 @@ MainWindow:: MainWindow(QWidget *parent) :
 
 void MainWindow::openSettings()
 {
+    if(!settings) settings = new Settings(this, config);
     settings->loadSettings();
     if(settings->exec() == 1) refresh("Settings saved.");
 }
 
 void MainWindow::refresh(string statusMsg, QString selectedMod)
 {
-    setEnabled(false);
+    if(config->getSetting("Mounted") != "") selectedMod = QString::fromStdString(config->getSetting("Mounted"));
+
     getAllowFiles();
     getGameVersion();
 
-    status("Scanning for mods...");
-
-    int selectedRow = -1;
     ui->modList->clearContents();
     ui->modList->setRowCount(0);
+
+    int selectedRow = -1;
     QDir dirMods(QString::fromStdString(config->modPath));
     dirMods.setFilter(QDir::NoDotAndDotDot|QDir::Dirs|QDir::NoSymLinks);
     QDirIterator itMods(dirMods);
-    while (itMods.hasNext())
+    while(itMods.hasNext())
     {
         itMods.next();
         QString qsModSize = "0 MB", qsFileCount = "0 files",
@@ -106,7 +98,34 @@ void MainWindow::refresh(string statusMsg, QString selectedMod)
             connect(c->worker, &Worker::scanModUpdate, this, &MainWindow::scanModUpdate);
             emit c->scanMod(row);
         }
-        else ui->modList->resizeColumnToContents(0);
+        else
+        {
+            if(config->getSetting("MountedError") != "")
+            {
+                QStringList errorList = QString::fromStdString(config->getSetting("MountedError")).split(";", QString::SkipEmptyParts);
+                if(errorList.size() > 0)
+                {
+                    QString errorString = "Warning:";
+                    for(int i=0; i < errorList.size(); i++)
+                        if(i == 0 || errorList.at(i) != errorList.at(i-1))
+                            errorString += "\n("+QString::number(i+1)+") "+errorList.at(i);
+
+                    ui->modList->item(row, 0)->setIcon(warningIcon);
+                    ui->modList->item(row, 0)->setToolTip(errorString);
+                }
+            }
+
+            ui->modList->resizeColumnToContents(0);
+        }
+    }
+
+    if(config->getSetting("Mounted") != "" && selectedRow == -1) {
+        if(QDir().mkdir(QString::fromStdString(config->modPath)+"/"+selectedMod))
+        {
+            refresh(statusMsg, selectedMod);
+            return;
+        }
+        else statusMsg = "Failed to create folder for "+selectedMod.toStdString()+".";
     }
 
     getMount();
@@ -114,9 +133,9 @@ void MainWindow::refresh(string statusMsg, QString selectedMod)
     if(statusMsg == "") status("WC3 Mod Manager refreshed.");
     else status(statusMsg);
 
-    setEnabled(true);
     if(selectedRow >= 0 && selectedRow < ui->modList->rowCount())
     {
+        ui->modList->scrollToItem(ui->modList->item(selectedRow, 0));
         ui->modList->selectRow(selectedRow);
         ui->modList->setFocus();
     }
@@ -258,25 +277,27 @@ void MainWindow::mountMod()
     if(!mounting) getMount(true);
 }
 
-void MainWindow::mountModReady(QString modName, int success, int failed, int missing)
+void MainWindow::mountModReady(QString modName, int success, int failed, int missing, bool abort)
 {
-    int totErrors = failed+missing;
-    string sErrors = totErrors > 0 ? " ("+utils->int2string(totErrors)+" errors)" : "";
-
-    if(success > 0) status(modName.toStdString()+" mounted"+sErrors+".");
+    if(success > 0)
+    {
+        if(abort || failed+missing > 0)
+        {
+            config->setSetting("MountedError", result2errorMsg("Mounting", success, failed, missing, abort));
+            config->saveConfig();
+        }
+    }
     else
     {
-        if(totErrors > 0) status("Failed to mount "+modName.toStdString()+sErrors+".");
-        else status("No files to mount.");
-
         config->deleteSetting("Mounted");
         config->deleteSetting("MountedTo");
         config->deleteSetting("MountedSize");
         config->deleteSetting("MountedCount");
+        config->deleteSetting("MountedError");
         config->saveConfig();
     }
 
-    getMount(true);
+    refresh(result2statusMsg(modName.toStdString(), "Mounting", success, failed, missing, abort), modName);
 }
 
 void MainWindow::unmountMod()
@@ -300,27 +321,26 @@ void MainWindow::unmountMod()
     }
 }
 
-void MainWindow::unmountModReady(QString modName, int success, int failed, int missing)
+void MainWindow::unmountModReady(QString modName, int success, int failed, int missing, bool abort, bool force)
 {
-    int totErrors = failed+missing;
-    string statusMsg;
-
-    if(success == 0 && totErrors == 0) statusMsg = "No files to unmount.";
+    if(!force && (abort || failed+missing > 0))
+    {
+        string errorMsg = result2errorMsg("Unmounting", success, failed, missing, abort, force);
+        if(config->getSetting("MountedError") != "") errorMsg = config->getSetting("MountedError")+";"+errorMsg;
+        config->setSetting("MountedError", errorMsg);
+    }
     else
     {
-        statusMsg = modName.toStdString()+" unmounted";
-        if(totErrors > 0) statusMsg += " ("+utils->int2string(totErrors)+" errors)";
-        statusMsg += ".";
+        config->deleteSetting("Mounted");
+        config->deleteSetting("MountedTo");
+        config->deleteSetting("MountedSize");
+        config->deleteSetting("MountedCount");
+        config->deleteSetting("MountedError");
     }
-    status(statusMsg);
 
-    config->deleteSetting("Mounted");
-    config->deleteSetting("MountedTo");
-    config->deleteSetting("MountedSize");
-    config->deleteSetting("MountedCount");
     config->saveConfig();
 
-    getMount(true);
+    refresh(result2statusMsg(modName.toStdString(), "Unmounting", success, failed, missing, abort, force), modName);
 }
 
 void MainWindow::getMount(bool setFocus)
@@ -344,26 +364,10 @@ void MainWindow::getMount(bool setFocus)
                                   +tr("color: #eee; background-color: #555; }"));
         ui->modList->setEnabled(false);
 
-        bool modFound = false;
-        for(int i=0; i<ui->modList->rowCount() && !modFound; i++)
-            if(ui->modList->item(i, 0)->text() == QString::fromStdString(config->getSetting("Mounted"))) {
-                modFound = true;
-                ui->modList->selectRow(i);
-                ui->modList->scrollToItem(ui->modList->item(i, 0));
-            }
-
-        if(!modFound) {
-            if(QDir().mkdir(QString::fromStdString(config->modPath+"/"+config->getSetting("Mounted"))))
-                refresh();
-            else status("Failed to create mod folder.");
-        }
-
         connect(ui->toggleMountBtn, SIGNAL(clicked()), this, SLOT(unmountMod()));
     }
 
     ui->toggleMountBtn->setEnabled(true);
-    ui->gameBtn->setEnabled(true);
-    ui->editorBtn->setEnabled(true);
     setLaunchIcons();
     ui->gameBtn->setEnabled(true);
     ui->editorBtn->setEnabled(true);
@@ -389,8 +393,7 @@ void MainWindow::addMod()
 
         if(result == 0 || result == 1)
         {
-            QDir dir(qsFolder);
-            QString modName = dir.dirName(),
+            QString modName = QDir(qsFolder).dirName(),
                     qsNewFolder = QString::fromStdString(config->modPath)+"/"+modName;
             if(!QDir(qsNewFolder).exists())
             {
@@ -405,18 +408,9 @@ void MainWindow::addMod()
     }
 }
 
-void MainWindow::addModReady(QString modName, int success, int failed, int missing)
+void MainWindow::addModReady(QString modName, int success, int failed, int missing, bool abort)
 {
-    int totErrors = failed+missing;
-    string sModName = modName.toStdString(),
-           sErrors = totErrors > 0 ? " ("+utils->int2string(totErrors)+"errors)" : "";
-
-    if(success == 0)
-    {
-        if(totErrors == 0) status("No files to add.");
-        else status("Failed to add "+sModName+sErrors+".");
-    }
-    else refresh(sModName+" added"+sErrors+".", modName);
+    refresh(result2statusMsg(modName.toStdString(), "Adding", success, failed, missing, abort), modName);
 }
 
 void MainWindow::openModFolder()
@@ -438,18 +432,18 @@ void MainWindow::renameModAction()
     if(modSelected()) renameModStart(ui->modList->item(ui->modList->currentRow(), 0));
 }
 
-void MainWindow::renameModStart(QTableWidgetItem* item)
+void MainWindow::renameModStart(QTableWidgetItem *item)
 {
     if(item->column() == 0)
     {
-      renameModName = item->text();
-      renameModItem = item;
-      connect(ui->modList, SIGNAL(itemChanged(QTableWidgetItem*)), this, SLOT(renameModSave(QTableWidgetItem*)));
-      ui->modList->editItem(item);
+        renameModName = item->text();
+        renameModItem = item;
+        connect(ui->modList, SIGNAL(itemChanged(QTableWidgetItem*)), this, SLOT(renameModSave(QTableWidgetItem*)));
+        ui->modList->editItem(item);
     }
 }
 
-void MainWindow::renameModSave(QTableWidgetItem* item)
+void MainWindow::renameModSave(QTableWidgetItem *item)
 {
     disconnect(ui->modList, SIGNAL(itemChanged(QTableWidgetItem*)), this, SLOT(renameModSave(QTableWidgetItem*)));
 
@@ -485,10 +479,10 @@ void MainWindow::deleteMod()
         QString qsModName = ui->modList->item(ui->modList->currentRow(), 0)->text();
 
         if(QMessageBox::warning(this, "Permanently delete "+qsModName+"?",
-                "Are you sure you want to permanently delete "+qsModName+" ("
+                "Are you sure you want to PERMANENTLY delete "+qsModName+" ("
                +ui->modList->item(ui->modList->currentRow(), 1)->text()+" / "
                +ui->modList->item(ui->modList->currentRow(), 2)->text()+")?",
-                QMessageBox::Yes|QMessageBox::Cancel) == QMessageBox::Yes)
+                QMessageBox::Yes|QMessageBox::No) == QMessageBox::Yes)
         {
             string sModName = qsModName.toStdString();
             status("Deleting "+sModName+"...");
@@ -500,18 +494,9 @@ void MainWindow::deleteMod()
     }
 }
 
-void MainWindow::deleteModReady(QString modName, int success, int failed, int missing)
+void MainWindow::deleteModReady(QString modName, int success, int failed, int missing, bool abort)
 {
-    int totErrors = failed+missing;
-    string sModName = modName.toStdString(),
-           sErrors = totErrors > 0 ? " ("+utils->int2string(totErrors)+"errors)" : "";
-
-    if(success == 0)
-    {
-        if(totErrors == 0) status("Nothing to delete.");
-        else status("Failed to delete "+sModName+sErrors+".");
-    }
-    else refresh(sModName+" deleted"+sErrors+".", modName);
+    refresh(result2statusMsg(modName.toStdString(), "Deleting", success, failed, missing, abort), modName);
 }
 
 bool MainWindow::modSelected()
@@ -528,6 +513,88 @@ void MainWindow::status(string msg, bool warning)
 {
     ui->statusBarLbl->setText(QString::fromStdString(msg));
     if(warning) QMessageBox::warning(this, tr("Error"), tr(msg.c_str()));
+}
+
+string MainWindow::result2statusMsg(string modName, string action,int success, int failed, int missing, bool abort, bool force)
+{
+    map<string, string> dict = action_dict(action);
+    string statusMsg,
+           pAction = dict.find("pAction")->second,
+           cAction = dict.find("cAction")->second;
+    int totErrors = failed+missing;
+
+    if(abort) statusMsg = action+" "+modName+": aborted.";
+    else if((force && totErrors > 0) || (success > 0 && !(action == "Unmounting" && totErrors > 0)))
+        statusMsg = modName+" "+pAction+".";
+    else if(totErrors > 0) statusMsg = "Failed to "+cAction+" "+modName+".";
+    else statusMsg = "No files to "+cAction+".";
+
+    if(abort || totErrors > 0)
+    {
+        statusMsg += " ["+utils->int2string(success)+" files "+pAction;
+        if(failed > 0) statusMsg += ", "+utils->int2string(failed)+" files failed";
+        if(missing > 0) statusMsg += ", "+utils->int2string(missing)+" files missing";
+        statusMsg += "]";
+    }
+
+    return statusMsg;
+}
+
+string MainWindow::result2errorMsg(string action,int success, int failed, int missing, bool abort, bool force)
+{
+    map<string, string> dict = action_dict(action);
+    string errorMsg,
+           pAction = dict.find("pAction")->second,
+           cAction = dict.find("cAction")->second,
+           pAction_c = dict.find("pAction_c")->second;
+    int totErrors = failed+missing;
+
+    if(abort) errorMsg = action+" aborted";
+    else if(force) "Force "+cAction;
+    else if(success > 0 && !(action == "Unmounting" && totErrors > 0))
+        errorMsg = pAction_c;
+    else if(totErrors > 0) errorMsg = action+" failed";
+    else errorMsg = "No files to "+cAction;
+
+    errorMsg += ": "+utils->int2string(success)+" files "+pAction;
+    if(failed > 0) errorMsg += ", "+utils->int2string(failed)+" files failed";
+    if(missing > 0) errorMsg += ", "+utils->int2string(missing)+" files missing";
+
+    return errorMsg;
+}
+
+map<string, string> MainWindow::action_dict(string action)
+{
+    if(action == "Mounting")
+        return {
+            { "pAction", "mounted" },
+            { "pAction_c", "Mounted" },
+            { "cAction", "mount" }
+        };
+    else if(action == "Unmounting")
+        return {
+            { "pAction", "unmounted" },
+            { "pAction_c", "Unmounted" },
+            { "cAction", "unmount" }
+        };
+    else if(action == "Adding")
+        return {
+            { "pAction", "added" },
+            { "pAction_c", "Added" },
+            { "cAction", "add" }
+        };
+    else if(action == "Deleting")
+        return {
+            { "pAction", "deleted" },
+            { "pAction_c", "Deleted" },
+            { "cAction", "delete" }
+        };
+    else
+        return {
+            { "pAction", "processed" },
+            { "pAction_c", "Processed" },
+            { "cAction", "process" }
+        };
 }
 
 MainWindow::~MainWindow()

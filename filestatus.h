@@ -19,10 +19,14 @@ public:
     void setText(QString);
     void setInfoText(QString);
     void addErrorText(QString);
-    void result(QString);
+    void result(bool=false);
 
 private slots:
-    void cancel();
+    void abort();
+    void forceUnmountClicked();
+
+signals:
+    void forceUnmount(bool=true);
 };
 
 #endif // FILESTATUS_H

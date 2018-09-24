@@ -1,5 +1,7 @@
 #include "filestatus.h"
 #include "ui_filestatus.h"
+#include <QPushButton>
+#include <QMessageBox>
 
 FileStatus::FileStatus(QWidget *parent) :
     QDialog(parent),
@@ -7,8 +9,10 @@ FileStatus::FileStatus(QWidget *parent) :
 {
     ui->setupUi(this);
     setWindowFlag(Qt::WindowCloseButtonHint, false);
+    ui->okBtn->hide();
+    ui->forceBtn->hide();
 
-    connect(ui->buttonBox, SIGNAL(rejected()), this, SLOT(cancel()));
+    connect(ui->abortBtn, SIGNAL(clicked()), this, SLOT(abort()));
 }
 
 void FileStatus::setText(QString msg)
@@ -33,17 +37,38 @@ void FileStatus::addErrorText(QString msg)
     ui->detailsTxt->insertPlainText(msg+"\n");
 }
 
-void FileStatus::result(QString msg)
+void FileStatus::result(bool enableForce)
 {
-    ui->buttonBox->setStandardButtons(QDialogButtonBox::Ok);
-    ui->msgLbl->setText(ui->msgLbl->text()+" done.");
-    ui->infoLbl->setText(msg);
     setWindowFlag(Qt::WindowCloseButtonHint);
+
+    disconnect(ui->abortBtn, SIGNAL(clicked()), this, SLOT(abort()));
+    ui->abortBtn->hide();
+
+    connect(ui->okBtn, SIGNAL(clicked()), this, SLOT(accept()));
+    ui->okBtn->show();
+
+    if(enableForce)
+    {
+        connect(ui->forceBtn, SIGNAL(clicked()), this, SLOT(forceUnmountClicked()));
+        ui->forceBtn->show();
+    }
+    else
+    {
+        disconnect(ui->forceBtn, SIGNAL(clicked()), this, SLOT(forceUnmountClicked()));
+        ui->forceBtn->hide();
+    }
 }
 
-void FileStatus::cancel()
+void FileStatus::abort()
 {
     emit rejected();
+}
+
+void FileStatus::forceUnmountClicked()
+{
+    if(QMessageBox::warning(this, "Force unmount?", "Are you sure you want to remove all record of mounted files and backups?",
+                            QMessageBox::Yes|QMessageBox::No) == QMessageBox::Yes)
+        emit forceUnmount(true);
 }
 
 FileStatus::~FileStatus()

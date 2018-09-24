@@ -61,9 +61,7 @@ bool Utils::txtReaderNext()
     }
     else
     {
-        char line[255];
-        txtReader.getline(line, 255);
-        txtReaderLine = string(line);
+        getline(txtReader, txtReaderLine);
         return true;
     }
 }

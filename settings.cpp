@@ -37,24 +37,25 @@ void Settings::save()
         QMessageBox::warning(this, tr("Error"), tr("Warcraft III Folder: invalid folder."));
         return;
     }
-    string sGamePath = qsGamePath.toStdString();
-    utils->valueCorrect("GamePath", &sGamePath);
-    config->setSetting("GamePath", sGamePath);
+    else
+    {
+        string sGamePath = qsGamePath.toStdString();
+        utils->valueCorrect("GamePath", &sGamePath);
+        config->setSetting("GamePath", sGamePath);
 
-    string hideEmpty = ui->hideEmptyCbx->isChecked() ? "1" : "0";
-    config->setSetting("hideEmptyMods", hideEmpty);
+        config->setSetting("hideEmptyMods", ui->hideEmptyCbx->isChecked() ? "1" : "0");
 
-    config->saveConfig();
-    accept();
+        config->saveConfig();
+        accept();
+    }
 }
 
 void Settings::browseGame()
 {
     QString qsFolder = ui->dirEdit->text();
 
-    qsFolder = QFileDialog::getExistingDirectory(this, tr("Warcraft III Folder"),
-                                                    qsFolder,
-                                                    QFileDialog::ShowDirsOnly | QFileDialog::HideNameFilterDetails);
+    qsFolder = QFileDialog::getExistingDirectory(this, tr("Warcraft III Folder"), qsFolder,
+                                                 QFileDialog::ShowDirsOnly | QFileDialog::HideNameFilterDetails);
 
     if(qsFolder != "")
     {
