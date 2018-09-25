@@ -504,7 +504,7 @@ void MainWindow::renameModSave(QTableWidgetItem *item)
 
     renameModName = "";
     renameModItem = nullptr;
-    refresh(statusMsg, selectedMod, false);
+    refresh(statusMsg, selectedMod);
 }
 
 void MainWindow::deleteMod()

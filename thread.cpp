@@ -15,9 +15,7 @@ void Worker::scanModWorker(int row)
     double modSize = 0;
     int fileCount = 0;
 
-    QDir dirMod(QString::fromStdString(config->modPath)+"/"+mod);
-    dirMod.setFilter(QDir::NoDotAndDotDot|QDir::Files|QDir::NoSymLinks);
-    QDirIterator itMod(dirMod, QDirIterator::Subdirectories);
+    QDirIterator itMod(QString::fromStdString(config->modPath)+"/"+mod, QDir::NoDotAndDotDot|QDir::Files, QDirIterator::Subdirectories);
     if(itMod.hasNext())
         do
         {
@@ -36,10 +34,7 @@ void Worker::moveFolderWorker(QString src, QString dst, bool savePaths, bool cop
 {
     int success = 0, failed = 0, missing = 0;
 
-    QDir dirSrc(src);
-    dirSrc.setFilter(QDir::NoDotAndDotDot|QDir::Files|QDir::NoSymLinks);
-    QDirIterator itSrc(dirSrc, QDirIterator::Subdirectories);
-
+    QDirIterator itSrc(src, QDir::NoDotAndDotDot|QDir::Files, QDirIterator::Subdirectories);
     if(!abort && itSrc.hasNext())
     {
         std::ofstream out_files, backup_files;
@@ -83,40 +78,36 @@ void Worker::moveFolderWorker(QString src, QString dst, bool savePaths, bool cop
 
 void Worker::deleteModWorker()
 {
-    QDir dirMod(QString::fromStdString(config->modPath)+"/"+mod);
-    dirMod.setFilter(QDir::NoDotAndDotDot|QDir::AllEntries);
-    QDirIterator itMod(dirMod, QDirIterator::Subdirectories);
-
     int success = 0, failed = 0, missing = 0;
+    QString deleteModPath = QString::fromStdString(config->modPath)+"/"+mod;
 
+    QDirIterator itMod(deleteModPath, QDir::NoDotAndDotDot|QDir::AllEntries, QDirIterator::Subdirectories);
     while(!abort && itMod.hasNext())
     {
         itMod.next();
-
         QString filePath = itMod.filePath();
-        bool isFailed = false;
 
         emit status(filePath);
 
-        if(itMod.fileInfo().isFile())
-        {
-            if(QFile(filePath).remove())  success++;
-            else isFailed = true;
-        }
-        else if(!itMod.fileInfo().exists())
+        if(!itMod.fileInfo().exists())
         {
             missing++;
             emit status("Missing file: "+filePath+".", true);
         }
-        else isFailed = true;
-
-        if(isFailed)
+        else if(itMod.fileInfo().isFile() && QFile(filePath).remove())
+        {
+            success++;
+            removePath(itMod.fileInfo().absolutePath(), QString::fromStdString(config->modPath));
+        }
+        else if(itMod.fileInfo().isDir()) removePath(itMod.filePath(), QString::fromStdString(config->modPath));
+        else
         {
             failed++;
             emit status("Failed to delete file: "+filePath, true);
         }
-
     }
+
+    QDir().rmdir(deleteModPath);
 
     emit resultReady(mod, success, failed, missing, abort);
 }
@@ -124,8 +115,6 @@ void Worker::deleteModWorker()
 void Worker::unmountModWorker(bool force)
 {
     int success = 0, failed = 0, missing = 0;
-
-    if(force) emit appendAction("lala");
 
     if(!abort && utils->txtReaderStart(config->outFilesPath))
     {
@@ -166,9 +155,7 @@ void Worker::unmountModWorker(bool force)
             {
                 QString qsLine = QString::fromStdString(utils->txtReaderLine);
                 emit status(QFileInfo(qsLine).fileName());
-                int result = moveFile(qsLine,
-                                      qsLine.chopped(qsLine.lastIndexOf(".")))
-                             .first;
+                int result = moveFile(qsLine, qsLine.chopped(qsLine.lastIndexOf("."))).first;
 
                 if(result == 0) success++;
                 else
@@ -177,7 +164,6 @@ void Worker::unmountModWorker(bool force)
                     if(result == 2) missing++;
                     else failed++;
                 }
-
             }
         }
 
@@ -225,22 +211,7 @@ std::pair<int, std::string> Worker::moveFile(QString src, QString dst, bool copy
             result = 0;
 
             //Delete empty folders from src
-            if(!copy)
-            {
-                QDir dirEmpty(fiSrc.absolutePath());
-                dirEmpty.setFilter(QDir::NoDotAndDotDot|QDir::AllEntries);
-
-                while(dirEmpty.count() == 0) {
-                    QString delPath = dirEmpty.absolutePath();
-                    dirEmpty.cdUp();
-
-                    if(     delPath.toStdString() != config->modPath
-                        &&  delPath.toStdString() != config->getSetting("GamePath")
-                        &&  dirEmpty.absolutePath().toStdString() != config->modPath)
-                        QDir().rmdir(delPath);
-                    else break;
-                }
-            }
+            if(!copy) removePath(fiSrc.absolutePath());
         }
     }
     else if(src != "" && !fiSrc.exists())
@@ -252,6 +223,26 @@ std::pair<int, std::string> Worker::moveFile(QString src, QString dst, bool copy
     if(result == 1) emit status("Failed to "+tr(copy ? "copy" : "move")+" file: "+src, true);
 
     return { result, backupPath };
+}
+
+void Worker::removePath(QString path, QString stopPath)
+{
+    QDir dirEmpty(path);
+    dirEmpty.setFilter(QDir::NoDotAndDotDot|QDir::AllEntries);
+
+    while(dirEmpty.count() == 0) {
+        QString delPath = dirEmpty.absolutePath();
+        dirEmpty.cdUp();
+
+        if(   delPath != stopPath
+           && delPath.toStdString() != config->modPath
+           && delPath.toStdString() != config->getSetting("GamePath")
+           && (stopPath != "" || dirEmpty.absolutePath().toStdString() != config->modPath))
+        {
+            if(!QDir().rmdir(delPath)) emit status("Failed to delete empty folder: "+delPath, true);
+        }
+        else break;
+    }
 }
 
 Controller::Controller(MainWindow *newMw, QString newAction, QString newMod, bool newStatus)
