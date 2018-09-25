@@ -146,7 +146,7 @@
         <item>
          <widget class="QCheckBox" name="allowFilesCbx">
           <property name="text">
-           <string>Allow Local &amp;Files</string>
+           <string>Allow &amp;Local Files</string>
           </property>
          </widget>
         </item>
@@ -375,22 +375,22 @@
    <property name="nativeMenuBar">
     <bool>false</bool>
    </property>
-   <widget class="QMenu" name="menuTools">
-    <property name="tearOffEnabled">
-     <bool>false</bool>
-    </property>
-    <property name="title">
-     <string>&amp;Tools</string>
-    </property>
-    <addaction name="actionSettings"/>
-   </widget>
    <widget class="QMenu" name="menuHelp">
     <property name="title">
      <string>&amp;Help</string>
     </property>
     <addaction name="actionAbout"/>
    </widget>
-   <addaction name="menuTools"/>
+   <widget class="QMenu" name="menu_File">
+    <property name="title">
+     <string>&amp;File</string>
+    </property>
+    <addaction name="actionOpenGameFolder"/>
+    <addaction name="actionOpenModsFolder"/>
+    <addaction name="separator"/>
+    <addaction name="actionSettings"/>
+   </widget>
+   <addaction name="menu_File"/>
    <addaction name="menuHelp"/>
   </widget>
   <action name="actionSettings">
@@ -400,33 +400,64 @@
    <property name="menuRole">
     <enum>QAction::PreferencesRole</enum>
    </property>
-   <property name="iconVisibleInMenu">
-    <bool>false</bool>
-   </property>
   </action>
   <action name="actionOpen">
    <property name="text">
-    <string>Open folder</string>
+    <string>Open Folder</string>
+   </property>
+   <property name="toolTip">
+    <string>Open Folder</string>
    </property>
   </action>
   <action name="actionRename">
    <property name="text">
     <string>Rename</string>
    </property>
+   <property name="font">
+    <font>
+     <weight>75</weight>
+     <bold>true</bold>
+    </font>
+   </property>
+   <property name="priority">
+    <enum>QAction::HighPriority</enum>
+   </property>
   </action>
   <action name="actionDelete">
    <property name="text">
     <string>Delete</string>
+   </property>
+   <property name="shortcut">
+    <string>Del</string>
+   </property>
+   <property name="shortcutContext">
+    <enum>Qt::WidgetWithChildrenShortcut</enum>
+   </property>
+   <property name="shortcutVisibleInContextMenu">
+    <bool>true</bool>
    </property>
   </action>
   <action name="actionAbout">
    <property name="text">
     <string>&amp;About</string>
    </property>
+   <property name="menuRole">
+    <enum>QAction::AboutRole</enum>
+   </property>
   </action>
   <action name="actionMount">
    <property name="text">
     <string>Mount</string>
+   </property>
+  </action>
+  <action name="actionOpenGameFolder">
+   <property name="text">
+    <string>Open &amp;Game Folder</string>
+   </property>
+  </action>
+  <action name="actionOpenModsFolder">
+   <property name="text">
+    <string>Open &amp;Mods Folder</string>
    </property>
   </action>
  </widget>

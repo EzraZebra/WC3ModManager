@@ -46,8 +46,10 @@ private:
     Settings *settings; //must be initialized after config
 
 private slots:
+    void openGameFolder();
+    void openModsFolder();
     void openSettings();
-    void refresh(std::string="", QString="");
+    void refresh(std::string="", QString="", bool=true);
     void scanModUpdate(int, QString, QString);
     void launchGame();
     void launchEditor();

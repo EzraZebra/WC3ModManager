@@ -222,7 +222,7 @@ std::pair<int, std::string> Worker::moveFile(QString src, QString dst, bool copy
 
         if(copy ? QFile::copy(src, dst) : QFile::rename(src, dst))
         {
-            result = rand()%(3);
+            result = 0;
 
             //Delete empty folders from src
             if(!copy)
