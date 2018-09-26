@@ -114,7 +114,7 @@ void Worker::deleteModWorker()
 void Worker::unmountModWorker(bool force)
 {
     int success = 0, failed = 0, missing = 0;
-    TxtReader txtReader(config->outFilesPath);
+    utils::TxtReader txtReader(config->outFilesPath);
 
     if(!abort && txtReader.next())
     {
@@ -144,7 +144,7 @@ void Worker::unmountModWorker(bool force)
         out_files.close();
     }
 
-    txtReader = TxtReader(config->backupFilesPath);
+    txtReader = utils::TxtReader(config->backupFilesPath);
     if(!abort && txtReader.next())
     {
         emit appendAction("restoring backups...");

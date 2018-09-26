@@ -19,7 +19,7 @@ Config::Config()
     backupFilesPath = exePathBufferStr+"/backup_files.txt";
 
     //Load config file
-    TxtReader txtReader(cfgPath);
+    utils::TxtReader txtReader(cfgPath);
     while(txtReader.next())
     {
         pair<string, string> setting = utils::line2setting(txtReader.line);
