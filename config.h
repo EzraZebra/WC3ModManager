@@ -9,8 +9,7 @@ class Config
     std::string cfgPath;
 
 public:
-    Config(Utils*);
-    Utils *utils;
+    Config();
 
     std::map<std::string, std::string> settings;
     void setSetting(std::string, std::string);

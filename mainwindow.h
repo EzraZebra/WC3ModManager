@@ -15,7 +15,6 @@ class MainWindow : public QMainWindow
     Q_OBJECT
 
     Ui::MainWindow *ui;
-    Utils *utils = new Utils();
     QString renameModName;
     QTableWidgetItem *renameModItem;
 
@@ -40,7 +39,7 @@ class MainWindow : public QMainWindow
 public:
     explicit MainWindow(QWidget *parent = nullptr);
     ~MainWindow();
-    Config *config = new Config(utils);
+    Config *config = new Config();
 
 private:
     Settings *settings; //must be initialized after config

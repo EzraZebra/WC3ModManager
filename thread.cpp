@@ -6,7 +6,6 @@
 Worker::Worker(Config *newConfig, QString newMod)
 {
     config = newConfig;
-    utils = config->utils;
     mod = newMod;
 }
 
@@ -115,15 +114,16 @@ void Worker::deleteModWorker()
 void Worker::unmountModWorker(bool force)
 {
     int success = 0, failed = 0, missing = 0;
+    TxtReader txtReader(config->outFilesPath);
 
-    if(!abort && utils->txtReaderStart(config->outFilesPath))
+    if(!abort && txtReader.next())
     {
         std::string newOutFiles = "";
-        while(!abort && utils->txtReaderNext())
+        do
         {
-            if(utils->txtReaderLine != "")
+            if(txtReader.line != "")
             {
-                QString qsLine = QString::fromStdString(utils->txtReaderLine);
+                QString qsLine = QString::fromStdString(txtReader.line);
                 emit status(qsLine);
 
                 int result = moveFile(QString::fromStdString(config->getSetting("MountedTo"))+"/"+qsLine,
@@ -132,40 +132,41 @@ void Worker::unmountModWorker(bool force)
                 if(result == 0) success++;
                 else
                 {
-                    if(!force) newOutFiles += utils->txtReaderLine+"\n";
+                    if(!force) newOutFiles += txtReader.line+"\n";
                     if(result == 2) missing++;
                     else failed++;
                 }
             }
-        }
+        } while(!abort && txtReader.next());
 
         std::ofstream out_files(config->outFilesPath.c_str());
         out_files << newOutFiles;
         out_files.close();
     }
 
-    if(!abort && utils->txtReaderStart(config->backupFilesPath))
+    txtReader = TxtReader(config->backupFilesPath);
+    if(!abort && txtReader.next())
     {
         emit appendAction("restoring backups...");
 
         std::string newBackupFiles = "";
-        while(!abort && utils->txtReaderNext())
+        do
         {
-            if(utils->txtReaderLine != "")
+            if(txtReader.line != "")
             {
-                QString qsLine = QString::fromStdString(utils->txtReaderLine);
+                QString qsLine = QString::fromStdString(txtReader.line);
                 emit status(QFileInfo(qsLine).fileName());
                 int result = moveFile(qsLine, qsLine.chopped(qsLine.lastIndexOf("."))).first;
 
                 if(result == 0) success++;
                 else
                 {
-                    if(!force) newBackupFiles += utils->txtReaderLine+"\n";
+                    if(!force) newBackupFiles += txtReader.line+"\n";
                     if(result == 2) missing++;
                     else failed++;
                 }
             }
-        }
+        } while(!abort && txtReader.next());
 
         std::ofstream backup_files(config->backupFilesPath.c_str());
         backup_files << newBackupFiles;

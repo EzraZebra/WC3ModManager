@@ -12,7 +12,6 @@ Settings::Settings(QWidget *parent, Config *newConfig) :
     setWindowFlag(Qt::MSWindowsFixedSizeDialogHint);
 
     config = newConfig;
-    utils = config->utils;
 
     connect(ui->dirBtn, SIGNAL(clicked()), this, SLOT(browseGame()));
     connect(ui->buttonBox, SIGNAL(accepted()), this, SLOT(save()));
@@ -40,7 +39,7 @@ void Settings::save()
     else
     {
         string sGamePath = qsGamePath.toStdString();
-        utils->valueCorrect("GamePath", &sGamePath);
+        utils::valueCorrect("GamePath", &sGamePath);
         config->setSetting("GamePath", sGamePath);
 
         config->setSetting("hideEmptyMods", ui->hideEmptyCbx->isChecked() ? "1" : "0");
@@ -60,7 +59,7 @@ void Settings::browseGame()
     if(qsFolder != "")
     {
         string sFolder = qsFolder.toStdString();
-        utils->valueCorrect("GamePath", &sFolder);
+        utils::valueCorrect("GamePath", &sFolder);
         ui->dirEdit->setText(QString::fromStdString(sFolder));
     }
 }

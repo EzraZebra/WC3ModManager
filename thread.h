@@ -13,7 +13,6 @@ class Worker : public QObject
     std::pair<int, std::string> moveFile(QString, QString, bool=false);
     void removePath(QString, QString="");
     Config *config;
-    Utils *utils;
     QString mod;
 
 public:

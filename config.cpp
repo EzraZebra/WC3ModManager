@@ -2,31 +2,37 @@
 
 using namespace std;
 
-Config::Config(Utils* newUtils)
+Config::Config()
 {
-    utils = newUtils;
-
     //Set Paths
-    cfgPath = utils->exePath+"/config.cfg";
-    modPath = utils->exePath+"/mods";
-    outFilesPath = utils->exePath+"/out_files.txt";
-    backupFilesPath = utils->exePath+"/backup_files.txt";
+        //exe path
+        wchar_t exePathBuffer[MAX_PATH];
+        GetModuleFileName(nullptr, exePathBuffer, MAX_PATH);
+        std::wstring ws(exePathBuffer);
+        std::string exePathBufferStr(ws.begin(), ws.end());
+        std::string::size_type pos = exePathBufferStr.find_last_of("\\/");
+        exePathBufferStr = exePathBufferStr.substr(0, pos);
+        utils::valueCorrect("exePath", &exePathBufferStr);
+    cfgPath = exePathBufferStr+"/config.cfg";
+    modPath = exePathBufferStr+"/mods";
+    outFilesPath = exePathBufferStr+"/out_files.txt";
+    backupFilesPath = exePathBufferStr+"/backup_files.txt";
 
     //Load config file
-    if(utils->txtReaderStart(cfgPath))
-        while(utils->txtReaderNext())
-        {
-            pair<string, string> setting = utils->line2setting(utils->txtReaderLine);
-            setSetting(setting.first, setting.second);
-        }
+    TxtReader txtReader(cfgPath);
+    while(txtReader.next())
+    {
+        pair<string, string> setting = utils::line2setting(txtReader.line);
+        setSetting(setting.first, setting.second);
+    }
 
     //Load defaults
     bool configChanged = false;
 
     if(getSetting("GamePath") == "")
     {
-        string gamePath = utils->regGet(L"GamePath", REG_SZ);
-        if(gamePath == "") gamePath = utils->regGet(L"InstallPath", REG_SZ);
+        string gamePath = utils::regGet(L"GamePath", REG_SZ);
+        if(gamePath == "") gamePath = utils::regGet(L"InstallPath", REG_SZ);
         if(gamePath == "") gamePath = "C:/Program Files (x86)/Warcraft III";
 
         setSetting("GamePath", gamePath);
@@ -48,7 +54,7 @@ void Config::setSetting(string key, string value)
         if(value == "") deleteSetting(key);
         else
         {
-            utils->valueCorrect(key, &value);
+            utils::valueCorrect(key, &value);
             if(settings.find(key) == settings.end()) settings.insert({ key, value });
             else settings.find(key)->second = value;
         }

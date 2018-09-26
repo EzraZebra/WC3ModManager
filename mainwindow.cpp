@@ -221,7 +221,7 @@ void MainWindow::setAllowFiles()
 {
     DWORD allowFiles = ui->allowFilesCbx->isChecked() ? 1 : 0;
 
-    if(utils->regSet(L"Allow Local Files", allowFiles))
+    if(utils::regSet(L"Allow Local Files", allowFiles))
     {
         if(allowFiles == 1) status("Allow Local Files enabled.");
         else status("Allow Local Files disabled.");
@@ -233,7 +233,7 @@ void MainWindow::setAllowFiles()
 
 void MainWindow::getAllowFiles()
 {
-    string allowFiles = utils->regGet(L"Allow Local Files", REG_DWORD);
+    string allowFiles = utils::regGet(L"Allow Local Files", REG_DWORD);
 
     if(allowFiles=="0") ui->allowFilesCbx->setChecked(false);
     else if(allowFiles=="1") ui->allowFilesCbx->setChecked(true);
@@ -245,7 +245,7 @@ void MainWindow::setGameVersion()
 {
     DWORD gameVersion = ui->gameVersionCbx->isChecked() ? 1 : 0;
 
-    if(utils->regSet(L"Preferred Game Version", gameVersion))
+    if(utils::regSet(L"Preferred Game Version", gameVersion))
     {
         if(gameVersion == 1) status("Expansion enabled.");
         else status("Expansion disabled.");
@@ -257,7 +257,7 @@ void MainWindow::setGameVersion()
 
 void MainWindow::getGameVersion()
 {
-    string gameVersion = utils->regGet(L"Preferred Game Version", REG_DWORD);
+    string gameVersion = utils::regGet(L"Preferred Game Version", REG_DWORD);
 
     if(gameVersion == "0") ui->gameVersionCbx->setChecked(false);
     else if(gameVersion == "1") ui->gameVersionCbx->setChecked(true);
@@ -566,9 +566,9 @@ string MainWindow::result2statusMsg(string modName, string action,int success, i
 
     if(abort || totErrors > 0)
     {
-        statusMsg += " ["+utils->int2string(success)+" files "+pAction;
-        if(failed > 0) statusMsg += ", "+utils->int2string(failed)+" files failed";
-        if(missing > 0) statusMsg += ", "+utils->int2string(missing)+" files missing";
+        statusMsg += " ["+utils::int2string(success)+" files "+pAction;
+        if(failed > 0) statusMsg += ", "+utils::int2string(failed)+" files failed";
+        if(missing > 0) statusMsg += ", "+utils::int2string(missing)+" files missing";
         statusMsg += "]";
     }
 
@@ -591,9 +591,9 @@ string MainWindow::result2errorMsg(string action,int success, int failed, int mi
     else if(totErrors > 0) errorMsg = action+" failed";
     else errorMsg = "No files to "+cAction;
 
-    errorMsg += ": "+utils->int2string(success)+" files "+pAction;
-    if(failed > 0) errorMsg += ", "+utils->int2string(failed)+" files failed";
-    if(missing > 0) errorMsg += ", "+utils->int2string(missing)+" files missing";
+    errorMsg += ": "+utils::int2string(success)+" files "+pAction;
+    if(failed > 0) errorMsg += ", "+utils::int2string(failed)+" files failed";
+    if(missing > 0) errorMsg += ", "+utils::int2string(missing)+" files missing";
 
     return errorMsg;
 }

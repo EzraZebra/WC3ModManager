@@ -14,7 +14,6 @@ class Settings : public QDialog
 
     Ui::Settings *ui;
     Config *config;
-    Utils *utils;
 
 public:
     explicit Settings(QWidget *parent = nullptr, Config *newConfig = nullptr);

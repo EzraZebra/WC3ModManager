@@ -5,54 +5,98 @@
 #include <ostream>
 #include <QFileInfo>
 
-using namespace std;
-
-Utils::Utils()
+std::string utils::str_narrow(const std::wstring& str)
 {
-    wchar_t exePathBuffer[MAX_PATH];
-    GetModuleFileName(nullptr, exePathBuffer, MAX_PATH);
-    wstring ws(exePathBuffer);
-    string exePathBufferStr(ws.begin(), ws.end());
-    string::size_type pos = exePathBufferStr.find_last_of("\\/");
-    exePathBufferStr = exePathBufferStr.substr(0, pos);
-    valueCorrect("exePath", &exePathBufferStr);
-    exePath = exePathBufferStr;
-}
-
-string Utils::narrow(const wstring& str)
-{
-    ostringstream stm ;
-    const ctype<char>& ctfacet = use_facet< ctype<char> >(stm.getloc());
-    for(size_t i=0 ; i<str.size() ; ++i) stm << ctfacet.narrow(str[i], 0);
+    std::ostringstream stm;
+    const std::ctype<char>& ctfacet = std::use_facet< std::ctype<char> >(stm.getloc());
+    for(size_t i=0; i<str.size(); ++i) stm << ctfacet.narrow(char(str[i]), 0);
     return stm.str();
 }
 
-string Utils::int2string(int i)
+std::string utils::int2string(int i)
 {
-    ostringstream stream;
+    std::ostringstream stream;
     stream << i;
     return stream.str();
 }
 
-void Utils::valueCorrect(string field, string* value)
+void utils::valueCorrect(std::string field, std::string *value)
 {
     if(field == "GamePath" || field == "exePath") replace(value->begin(), value->end(), '\\', '/');
 }
 
-bool Utils::txtReaderStart(string path)
+std::pair<std::string, std::string> utils::line2setting(std::string line)
 {
-    QFileInfo qfTxtFile(QString::fromStdString(path));
+    size_t pos = line.find_first_of('=');
 
-    if(qfTxtFile.exists() && qfTxtFile.isFile())
-    {
-        if(txtReader.is_open()) txtReader.close();
-        txtReader.open(path.c_str());
+    std::string field = line.substr(0, pos),
+                value = line.substr(pos+1);
+    valueCorrect(field, &value);
+
+    return { field, value };
+}
+
+bool utils::regOpenKey(REGSAM samDesired, HKEY* hKey)
+{
+    if(RegOpenKeyEx(HKEY_CURRENT_USER, L"Software\\Blizzard Entertainment\\Warcraft III", 0, samDesired, hKey) == ERROR_SUCCESS)
         return true;
-    }
     else return false;
 }
 
-bool Utils::txtReaderNext()
+std::string utils::regGet(const wchar_t* key, DWORD type)
+{
+    HKEY hKey;
+    std::string sResult = "";
+    if(regOpenKey(KEY_READ, &hKey))
+    {
+        DWORD size=1024;
+
+        if(type == REG_SZ)
+        {
+            wchar_t result[MAX_PATH];
+            if(RegQueryValueEx(hKey, key, nullptr, &type, LPBYTE(&result), &size) == ERROR_SUCCESS)
+                sResult = str_narrow(result);
+        }
+        else if(type == REG_DWORD)
+        {
+            DWORD result;
+            if(RegQueryValueEx(hKey, key, nullptr, &type, LPBYTE(&result), &size) == ERROR_SUCCESS)
+                sResult = int2string(static_cast<int>(result));
+        }
+    }
+
+    RegCloseKey(hKey);
+    valueCorrect(str_narrow(key), &sResult);
+
+    return sResult;
+}
+
+bool utils::regSet(const wchar_t* key, DWORD value)
+{
+    HKEY hKey;
+    bool success = false;
+
+    if(regOpenKey(KEY_ALL_ACCESS, &hKey))
+        success = (RegSetValueEx(hKey, key, 0, REG_DWORD, reinterpret_cast<const BYTE*>(&value), sizeof(value)) == ERROR_SUCCESS);
+
+    RegCloseKey(hKey);
+
+    return success;
+}
+
+
+
+TxtReader::TxtReader(std::string path)
+{
+    QFileInfo fiPath(QString::fromStdString(path));
+
+    if(fiPath.exists() && fiPath.isFile())
+    {
+        txtReader.open(path.c_str());
+    }
+}
+
+bool TxtReader::next()
 {
     if(!txtReader)
     {
@@ -61,86 +105,7 @@ bool Utils::txtReaderNext()
     }
     else
     {
-        getline(txtReader, txtReaderLine);
+        getline(txtReader, line);
         return true;
     }
-}
-
-pair<string, string> Utils::line2setting(string line)
-{
-    size_t pos = line.find_first_of('=');
-
-    string  field = line.substr(0, pos),
-            value = line.substr(pos+1);
-    valueCorrect(field, &value);
-
-    return { field, value };
-}
-
-bool Utils::regOpenKey(REGSAM samDesired, HKEY* hKey)
-{
-    if(RegOpenKeyEx(HKEY_CURRENT_USER,L"Software\\Blizzard Entertainment\\Warcraft III",0,samDesired,hKey) == ERROR_SUCCESS)
-        return true;
-    else
-    {
-        error("Utils::regOpenKey", "Failed to open registry key.");
-        return false;
-    }
-}
-
-string Utils::regGet(const wchar_t* key, DWORD type)
-{
-    HKEY hKey;
-    string sResult = "";
-    if(regOpenKey(KEY_READ, &hKey))
-    {
-        DWORD size=1024;
-
-        if(type == REG_SZ)
-        {
-            wchar_t result[MAX_PATH];
-            if(RegQueryValueEx(hKey,key,NULL,&type,(LPBYTE)&result,&size) == ERROR_SUCCESS)
-                sResult = narrow(result);
-            else error("Utils::regGet", "Failed to read registry value.");
-        }
-        else if(type == REG_DWORD)
-        {
-            DWORD result;
-            if(RegQueryValueEx(hKey,key,NULL,&type,(LPBYTE)&result,&size) == ERROR_SUCCESS)
-                sResult = int2string(result);
-            else error("Utils::regGet", "Failed to read registry value.");
-        }
-        else error("Utils::regGet", "Invalid type");
-    }
-
-    RegCloseKey(hKey);
-    valueCorrect(narrow(key), &sResult);
-
-    return sResult;
-}
-
-bool Utils::regSet(const wchar_t* key, DWORD value)
-{
-    HKEY hKey;
-    bool success = false;
-    if(regOpenKey(KEY_ALL_ACCESS, &hKey))
-        success = (RegSetValueEx(hKey, key, 0, REG_DWORD, (const BYTE*)&value, sizeof(value)) == ERROR_SUCCESS);
-    if(!success) error("Utils::regSet()", "Failed to set registry value.");
-    RegCloseKey(hKey);
-    return success;
-}
-
-void Utils::error(string info, string msg)
-{
-    static char timestamp[20];
-    time_t now = time(nullptr);
-    strftime(timestamp, sizeof(timestamp), "%Y%m%d_%H%M%S", localtime(&now));
-
-    string timestampStr(timestamp);
-
-    if(!error_log.is_open()) error_log.open((exePath+"/error_log_"+timestampStr+".txt").c_str());
-
-    string output = ("["+timestampStr+"] "+info+" - "+msg);
-    error_log << output << endl;
-    cout << output << endl;
 }
