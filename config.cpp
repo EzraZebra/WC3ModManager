@@ -1,28 +1,26 @@
 #include "config.h"
-
-using namespace std;
+#include "utils.h"
 
 Config::Config()
 {
+    //exe path
+    wchar_t exePathBuffer[MAX_PATH];
+    GetModuleFileName(nullptr, exePathBuffer, MAX_PATH);
+    std::string exePath = utils::narrow_str(exePathBuffer);
+    exePath = exePath.substr(0, exePath.find_last_of("\\/"));
+    utils::valueCorrect("path", &exePath);
+
     //Set Paths
-        //exe path
-        wchar_t exePathBuffer[MAX_PATH];
-        GetModuleFileName(nullptr, exePathBuffer, MAX_PATH);
-        std::wstring ws(exePathBuffer);
-        std::string exePathBufferStr(ws.begin(), ws.end());
-        std::string::size_type pos = exePathBufferStr.find_last_of("\\/");
-        exePathBufferStr = exePathBufferStr.substr(0, pos);
-        utils::valueCorrect("exePath", &exePathBufferStr);
-    cfgPath = exePathBufferStr+"/config.cfg";
-    modPath = exePathBufferStr+"/mods";
-    outFilesPath = exePathBufferStr+"/out_files.txt";
-    backupFilesPath = exePathBufferStr+"/backup_files.txt";
+    cfgPath = exePath+"/config.cfg";
+    modPath = exePath+"/mods";
+    outFilesPath = exePath+"/out_files.txt";
+    backupFilesPath = exePath+"/backup_files.txt";
 
     //Load config file
     utils::TxtReader txtReader(cfgPath);
     while(txtReader.next())
     {
-        pair<string, string> setting = utils::line2setting(txtReader.line);
+        std::pair<std::string, std::string> setting = txtReader.line2setting();
         setSetting(setting.first, setting.second);
     }
 
@@ -31,9 +29,19 @@ Config::Config()
 
     if(getSetting("GamePath") == "")
     {
-        string gamePath = utils::regGet(L"GamePath", REG_SZ);
-        if(gamePath == "") gamePath = utils::regGet(L"InstallPath", REG_SZ);
-        if(gamePath == "") gamePath = "C:/Program Files (x86)/Warcraft III";
+        std::string gamePath = "";
+        for(int i=0; gamePath == ""; i++)
+            switch(i)
+            {
+                case(0): gamePath = utils::regGet(L"GamePath", REG_SZ);
+                         break;
+                case(1): gamePath = utils::regGet(L"InstallPath", REG_SZ);
+                         break;
+                case(2): gamePath = utils::regGetPF86();
+                         if(gamePath != "") gamePath += "/Warcraft III";
+                         break;
+                default: gamePath = "C:/Program Files (x86)/Warcraft III";
+            }
 
         setSetting("GamePath", gamePath);
         configChanged = true;
@@ -47,7 +55,7 @@ Config::Config()
     if(configChanged) saveConfig();
 }
 
-void Config::setSetting(string key, string value)
+void Config::setSetting(std::string key, std::string value)
 {
     if(key != "")
     {
@@ -61,13 +69,13 @@ void Config::setSetting(string key, string value)
      }
 }
 
-void Config::deleteSetting(string key)
+void Config::deleteSetting(std::string key)
 {
     if(settings.find(key) != settings.end())
         settings.erase(key);
 }
 
-string Config::getSetting(string key)
+std::string Config::getSetting(std::string key)
 {
     if(settings.find(key) == settings.end())
         return "";
@@ -76,10 +84,10 @@ string Config::getSetting(string key)
 
 void Config::saveConfig()
 {
-    ofstream cfg(cfgPath.c_str());
+    std::ofstream cfg(cfgPath.c_str());
 
-    for(map<string, string>::const_iterator it = settings.begin(); it != settings.end(); ++it)
-        cfg << it->first+"="+it->second << endl;
+    for(std::map<std::string, std::string>::const_iterator it = settings.begin(); it != settings.end(); ++it)
+        cfg << it->first+"="+it->second << std::endl;
 
     cfg.close();
 }

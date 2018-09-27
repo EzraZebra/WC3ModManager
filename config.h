@@ -1,17 +1,16 @@
 #ifndef CONFIG_H
 #define CONFIG_H
 
-#include "utils.h"
 #include <map>
 
 class Config
 {
     std::string cfgPath;
+    std::map<std::string, std::string> settings;
 
 public:
     Config();
 
-    std::map<std::string, std::string> settings;
     void setSetting(std::string, std::string);
     std::string getSetting(std::string);
     void deleteSetting(std::string);

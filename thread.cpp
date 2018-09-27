@@ -1,8 +1,82 @@
 #include "thread.h"
-#include <iostream>
-#include <QDir>
-#include <QDirIterator>
+#include "utils.h"
+#include "ui_filestatus.h"
 
+// FILESTATUS DIALOG
+FileStatus::FileStatus(QWidget *parent) :
+    QDialog(parent),
+    ui(new Ui::FileStatus)
+{
+    ui->setupUi(this);
+    setWindowFlag(Qt::WindowCloseButtonHint, false);
+    ui->okBtn->hide();
+    ui->forceBtn->hide();
+
+    connect(ui->abortBtn, SIGNAL(clicked()), this, SLOT(abort()));
+}
+
+void FileStatus::setText(QString msg)
+{
+    ui->msgLbl->setText(msg);
+}
+
+void FileStatus::setInfoText(QString msg)
+{
+    ui->infoLbl->setText(msg);
+}
+
+void FileStatus::addErrorText(QString msg)
+{
+    if(ui->detailsTxt->height() == 0)
+    {
+        setMinimumHeight(minimumHeight()+90);
+        ui->detailsTxt->setMinimumHeight(90);
+        ui->detailsTxt->setMaximumHeight(QWIDGETSIZE_MAX);
+    }
+    ui->detailsTxt->moveCursor(QTextCursor::End);
+    ui->detailsTxt->insertPlainText(msg+"\n");
+}
+
+void FileStatus::result(bool enableForce)
+{
+    setWindowFlag(Qt::WindowCloseButtonHint);
+
+    disconnect(ui->abortBtn, SIGNAL(clicked()), this, SLOT(abort()));
+    ui->abortBtn->hide();
+
+    connect(ui->okBtn, SIGNAL(clicked()), this, SLOT(accept()));
+    ui->okBtn->show();
+
+    if(enableForce)
+    {
+        connect(ui->forceBtn, SIGNAL(clicked()), this, SLOT(forceUnmountClicked()));
+        ui->forceBtn->show();
+    }
+    else
+    {
+        disconnect(ui->forceBtn, SIGNAL(clicked()), this, SLOT(forceUnmountClicked()));
+        ui->forceBtn->hide();
+    }
+}
+
+void FileStatus::abort()
+{
+    emit rejected();
+}
+
+void FileStatus::forceUnmountClicked()
+{
+    if(QMessageBox::warning(this, "Force unmount?", "Are you sure you want to remove all record of mounted files and backups?",
+                            QMessageBox::Yes|QMessageBox::No) == QMessageBox::Yes)
+        emit forceUnmount(true);
+}
+
+FileStatus::~FileStatus()
+{
+    delete ui;
+}
+
+// THREAD WORKER
 Worker::Worker(Config *newConfig, QString newMod)
 {
     config = newConfig;
@@ -85,20 +159,21 @@ void Worker::deleteModWorker()
     {
         itMod.next();
         QString filePath = itMod.filePath();
+        QFileInfo fiFilePath = itMod.fileInfo();
 
         emit status(filePath);
 
-        if(!itMod.fileInfo().exists())
+        if(fiFilePath.exists())
         {
             missing++;
             emit status("Missing file: "+filePath+".", true);
         }
-        else if(itMod.fileInfo().isFile() && QFile(filePath).remove())
+        else if(fiFilePath.isFile() && QFile(filePath).remove())
         {
             success++;
-            removePath(itMod.fileInfo().absolutePath(), QString::fromStdString(config->modPath));
+            removePath(fiFilePath.absolutePath(), QString::fromStdString(config->modPath));
         }
-        else if(itMod.fileInfo().isDir()) removePath(itMod.filePath(), QString::fromStdString(config->modPath));
+        else if(fiFilePath.isDir()) removePath(filePath, QString::fromStdString(config->modPath));
         else
         {
             failed++;
@@ -114,59 +189,58 @@ void Worker::deleteModWorker()
 void Worker::unmountModWorker(bool force)
 {
     int success = 0, failed = 0, missing = 0;
-    utils::TxtReader txtReader(config->outFilesPath);
+    utils::TxtReader* txtReader = new utils::TxtReader(config->outFilesPath);
 
-    if(!abort && txtReader.next())
+    if(!abort && txtReader->next())
     {
         std::string newOutFiles = "";
         do
         {
-            if(txtReader.line != "")
+            if(txtReader->line != "")
             {
-                QString qsLine = QString::fromStdString(txtReader.line);
+                QString qsLine = QString::fromStdString(txtReader->line);
                 emit status(qsLine);
 
                 int result = moveFile(QString::fromStdString(config->getSetting("MountedTo"))+"/"+qsLine,
-                                      QString::fromStdString(config->modPath)+"/"+mod+"/"+qsLine)
-                             .first;
+                                      QString::fromStdString(config->modPath)+"/"+mod+"/"+qsLine).first;
                 if(result == 0) success++;
                 else
                 {
-                    if(!force) newOutFiles += txtReader.line+"\n";
+                    if(!force) newOutFiles += txtReader->line+"\n";
                     if(result == 2) missing++;
                     else failed++;
                 }
             }
-        } while(!abort && txtReader.next());
+        } while(!abort && txtReader->next());
 
         std::ofstream out_files(config->outFilesPath.c_str());
         out_files << newOutFiles;
         out_files.close();
     }
 
-    txtReader = utils::TxtReader(config->backupFilesPath);
-    if(!abort && txtReader.next())
+    txtReader = new utils::TxtReader(config->backupFilesPath);
+    if(!abort && txtReader->next())
     {
         emit appendAction("restoring backups...");
 
         std::string newBackupFiles = "";
         do
         {
-            if(txtReader.line != "")
+            if(txtReader->line != "")
             {
-                QString qsLine = QString::fromStdString(txtReader.line);
+                QString qsLine = QString::fromStdString(txtReader->line);
                 emit status(QFileInfo(qsLine).fileName());
                 int result = moveFile(qsLine, qsLine.chopped(qsLine.lastIndexOf("."))).first;
 
                 if(result == 0) success++;
                 else
                 {
-                    if(!force) newBackupFiles += txtReader.line+"\n";
+                    if(!force) newBackupFiles += txtReader->line+"\n";
                     if(result == 2) missing++;
                     else failed++;
                 }
             }
-        } while(!abort && txtReader.next());
+        } while(!abort && txtReader->next());
 
         std::ofstream backup_files(config->backupFilesPath.c_str());
         backup_files << newBackupFiles;
@@ -210,8 +284,6 @@ std::pair<int, std::string> Worker::moveFile(QString src, QString dst, bool copy
         if(copy ? QFile::copy(src, dst) : QFile::rename(src, dst))
         {
             result = 0;
-
-            //Delete empty folders from src
             if(!copy) removePath(fiSrc.absolutePath());
         }
     }
@@ -327,4 +399,3 @@ Controller::~Controller()
     workerThread.quit();
     workerThread.wait();
 }
-

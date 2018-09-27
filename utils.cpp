@@ -1,14 +1,8 @@
 #include "utils.h"
+#include <sstream>
+#include <QFileInfo>
 
 namespace utils {
-    std::string str_narrow(const std::wstring& str)
-    {
-        std::ostringstream stm;
-        const std::ctype<char>& ctfacet = std::use_facet< std::ctype<char> >(stm.getloc());
-        for(size_t i=0; i<str.size(); ++i) stm << ctfacet.narrow(char(str[i]), 0);
-        return stm.str();
-    }
-
     std::string int2string(int i)
     {
         std::ostringstream stream;
@@ -18,18 +12,15 @@ namespace utils {
 
     void valueCorrect(std::string field, std::string *value)
     {
-        if(field == "GamePath" || field == "exePath") replace(value->begin(), value->end(), '\\', '/');
+        if(field == "GamePath" || field == "path") replace(value->begin(), value->end(), '\\', '/');
     }
 
-    std::pair<std::string, std::string> line2setting(std::string line)
+    std::string narrow_str(const std::wstring& str)
     {
-        size_t pos = line.find_first_of('=');
-
-        std::string field = line.substr(0, pos),
-                    value = line.substr(pos+1);
-        valueCorrect(field, &value);
-
-        return { field, value };
+        std::ostringstream stm;
+        const std::ctype<char>& ctfacet = std::use_facet< std::ctype<char> >(stm.getloc());
+        for(size_t i=0; i<str.size(); ++i) stm << ctfacet.narrow(char(str[i]), 0);
+        return stm.str();
     }
 
     bool regOpenKey(REGSAM samDesired, HKEY* hKey)
@@ -51,7 +42,7 @@ namespace utils {
             {
                 wchar_t result[MAX_PATH];
                 if(RegQueryValueEx(hKey, key, nullptr, &type, LPBYTE(&result), &size) == ERROR_SUCCESS)
-                    sResult = str_narrow(result);
+                    sResult = narrow_str(result);
             }
             else if(type == REG_DWORD)
             {
@@ -62,7 +53,7 @@ namespace utils {
         }
 
         RegCloseKey(hKey);
-        valueCorrect(str_narrow(key), &sResult);
+        valueCorrect(narrow_str(key), &sResult);
 
         return sResult;
     }
@@ -80,6 +71,24 @@ namespace utils {
         return success;
     }
 
+    std::string regGetPF86()
+    {
+        HKEY hKey;
+        std::string sResult = "";
+        if(RegOpenKeyEx(HKEY_LOCAL_MACHINE, L"SOFTWARE\\Microsoft\\Winwdows\\CurrentVersion", 0, KEY_READ, &hKey) == ERROR_SUCCESS)
+        {
+            wchar_t result[MAX_PATH];
+            DWORD size = 1024, type = REG_SZ;
+            if(RegQueryValueEx(hKey, L"ProgramFilesDir (x86)", nullptr, &type, LPBYTE(&result), &size) == ERROR_SUCCESS)
+                sResult = narrow_str(result);
+        }
+
+        RegCloseKey(hKey);
+        valueCorrect("path", &sResult);
+
+        return sResult;
+    }
+
     TxtReader::TxtReader(std::string path)
     {
         QFileInfo fiPath(QString::fromStdString(path));
@@ -88,13 +97,14 @@ namespace utils {
         {
             txtReader.open(path.c_str());
         }
+        else invalidPath = true;
     }
 
     bool TxtReader::next()
     {
-        if(!txtReader)
+        if(invalidPath || !txtReader)
         {
-            txtReader.close();
+            if(!invalidPath) txtReader.close();
             return false;
         }
         else
@@ -102,5 +112,20 @@ namespace utils {
             getline(txtReader, line);
             return true;
         }
+    }
+
+    std::pair<std::string, std::string> TxtReader::line2setting()
+    {
+        size_t pos = line.find_first_of('=');
+
+        std::string field = line.substr(0, pos),
+                    value = line.substr(pos+1);
+
+        return { field, value };
+    }
+
+    TxtReader::~TxtReader()
+    {
+        if(txtReader.is_open()) txtReader.close();
     }
 }

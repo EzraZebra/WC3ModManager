@@ -25,7 +25,6 @@ RC_ICONS = icons/icon.ico
 
 SOURCES += \
     config.cpp \
-    filestatus.cpp \
     main.cpp \
     mainwindow.cpp \
     settings.cpp \
@@ -34,7 +33,6 @@ SOURCES += \
 
 HEADERS += \
     config.h \
-    filestatus.h \
     mainwindow.h \
     settings.h \
     thread.h \

@@ -2,9 +2,6 @@
 #define MAINWINDOW_H
 
 #include "settings.h"
-#include <QMainWindow>
-#include <QtWidgets>
-#include <set>
 
 namespace Ui {
 class MainWindow;
@@ -15,6 +12,8 @@ class MainWindow : public QMainWindow
     Q_OBJECT
 
     Ui::MainWindow *ui;
+    Settings *settings=nullptr;
+    QDialog *about=nullptr;
     QString renameModName;
     QTableWidgetItem *renameModItem;
 
@@ -23,10 +22,10 @@ class MainWindow : public QMainWindow
     void getGameVersion();
     void getMount(bool=false);
     bool modSelected();
-    void status(std::string, bool=false);
-    std::string result2statusMsg(std::string, std::string, int, int, int, bool=false, bool=false);
+    void status(QString, bool=false);
+    QString result2statusMsg(QString, QString, int, int, int, bool=false, bool=false);
     std::string result2errorMsg(std::string, int, int, int, bool=false, bool=false);
-    std::map<std::string, std::string> action_dict(std::string);
+    std::map<QString, QString> action_dict(QString);
 
     QIcon war3 = QIcon(":/icons/war3.png");
     QIcon war3mod = QIcon(":/icons/war3_mod.png");
@@ -41,14 +40,12 @@ public:
     ~MainWindow();
     Config *config = new Config();
 
-private:
-    Settings *settings; //must be initialized after config
-
 private slots:
     void openGameFolder();
     void openModsFolder();
     void openSettings();
-    void refresh(std::string="", QString="", bool=true);
+    void openAbout();
+    void refresh(QString="", QString="", bool=true);
     void scanModUpdate(int, QString, QString);
     void launchGame();
     void launchEditor();
@@ -61,9 +58,9 @@ private slots:
     void addMod();
     void addModReady(QString, int, int, int, bool=false);
     void openModFolder();
+    void renameModAction();
     void renameModStart(QTableWidgetItem*);
     void renameModSave(QTableWidgetItem*);
-    void renameModAction();
     void deleteMod();
     void deleteModReady(QString, int, int, int, bool=false);
 };

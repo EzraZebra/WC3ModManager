@@ -2,9 +2,32 @@
 #define THREAD_H
 
 #include "mainwindow.h"
-#include "filestatus.h"
-#include <utility>
-#include <QThread>
+
+namespace Ui {
+class FileStatus;
+}
+
+class FileStatus : public QDialog
+{
+    Q_OBJECT
+
+    Ui::FileStatus *ui;
+
+public:
+    explicit FileStatus(QWidget *parent = nullptr);
+    ~FileStatus();
+    void setText(QString);
+    void setInfoText(QString);
+    void addErrorText(QString);
+    void result(bool=false);
+
+private slots:
+    void abort();
+    void forceUnmountClicked();
+
+signals:
+    void forceUnmount(bool=true);
+};
 
 class Worker : public QObject
 {
@@ -41,12 +64,12 @@ class Controller : public QObject
     QString action;
     QString mod;
     bool showStatus;
+    FileStatus *fileStatus;
 
 public:
     Controller(MainWindow *, QString, QString, bool=true);
     ~Controller();
     Worker *worker;
-    FileStatus *fileStatus;
 
 private slots:
     void result(QString, int, int, int, bool, bool=false);

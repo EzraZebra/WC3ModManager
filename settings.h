@@ -3,6 +3,7 @@
 
 #include "config.h"
 #include <QDialog>
+#include <QtWidgets>
 
 namespace Ui {
 class Settings;
@@ -14,15 +15,18 @@ class Settings : public QDialog
 
     Ui::Settings *ui;
     Config *config;
+    void loadSettings();
 
 public:
-    explicit Settings(QWidget *parent = nullptr, Config *newConfig = nullptr);
+    explicit Settings(QWidget *parent = nullptr, Config *newConfig = new Config());
     ~Settings();
-    void loadSettings();
 
 private slots:
     void browseGame();
-    void save();
+    void save(QAbstractButton *);
+
+public slots:
+    int exec();
 };
 
 #endif // SETTINGS_H
