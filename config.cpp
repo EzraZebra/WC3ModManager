@@ -7,7 +7,7 @@ Config::Config()
     //Set Paths
     std::string exePath = QCoreApplication::applicationDirPath().toStdString();
     cfgPath = exePath+"/config.cfg";
-    modPath = exePath+"/mods"; //parent folder of "bin" in current deploy structure
+    modPath = exePath+"/mods";
     outFilesPath = exePath+"/out_files.txt";
     backupFilesPath = exePath+"/backup_files.txt";
 
