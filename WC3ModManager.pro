@@ -46,4 +46,4 @@ FORMS += \
 
 RESOURCES += \
     icons.qrc \
-    fonts.qrc
+    img.qrc
