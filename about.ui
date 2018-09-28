@@ -9,7 +9,7 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>355</width>
+    <width>368</width>
     <height>140</height>
    </rect>
   </property>
@@ -21,19 +21,13 @@
   </property>
   <property name="minimumSize">
    <size>
-    <width>355</width>
+    <width>368</width>
     <height>140</height>
    </size>
   </property>
   <property name="maximumSize">
    <size>
-    <width>355</width>
-    <height>140</height>
-   </size>
-  </property>
-  <property name="baseSize">
-   <size>
-    <width>355</width>
+    <width>368</width>
     <height>140</height>
    </size>
   </property>
@@ -46,7 +40,7 @@
   <widget class="QLabel" name="titleLbl">
    <property name="geometry">
     <rect>
-     <x>10</x>
+     <x>20</x>
      <y>10</y>
      <width>321</width>
      <height>41</height>
@@ -81,9 +75,9 @@
   <widget class="QLabel" name="versionLbl">
    <property name="geometry">
     <rect>
-     <x>310</x>
+     <x>320</x>
      <y>20</y>
-     <width>40</width>
+     <width>45</width>
      <height>20</height>
     </rect>
    </property>
@@ -98,7 +92,7 @@
     <string notr="true">color: rgba(211, 154, 23);</string>
    </property>
    <property name="text">
-    <string>v0.0.0</string>
+    <string>v0.9.9</string>
    </property>
    <property name="alignment">
     <set>Qt::AlignLeading|Qt::AlignLeft|Qt::AlignTop</set>
@@ -107,9 +101,9 @@
   <widget class="QWidget" name="">
    <property name="geometry">
     <rect>
-     <x>21</x>
-     <y>61</y>
-     <width>312</width>
+     <x>40</x>
+     <y>63</y>
+     <width>303</width>
      <height>77</height>
     </rect>
    </property>
@@ -117,13 +111,16 @@
     <property name="spacing">
      <number>0</number>
     </property>
+    <property name="leftMargin">
+     <number>4</number>
+    </property>
+    <property name="bottomMargin">
+     <number>6</number>
+    </property>
     <item>
      <layout class="QHBoxLayout" name="horizontalLayout">
       <property name="spacing">
-       <number>12</number>
-      </property>
-      <property name="leftMargin">
-       <number>2</number>
+       <number>36</number>
       </property>
       <item>
        <layout class="QVBoxLayout" name="verticalLayout">
@@ -214,7 +211,7 @@
            <string>https://www.hiveworkshop.com</string>
           </property>
           <property name="text">
-           <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;&lt;a href=&quot;https://www.hiveworkshop.com/&quot;&gt;&lt;span style=&quot; text-decoration: underline; color:#0000ff;&quot;&gt;Hive Workshop (TBR)&lt;/span&gt;&lt;/a&gt;&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
+           <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;&lt;a href=&quot;https://www.hiveworkshop.com/&quot;&gt;&lt;span style=&quot; text-decoration: underline; color:#0000ff;&quot;&gt;Hive Workshop&lt;/span&gt;&lt;/a&gt;&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
           </property>
           <property name="openExternalLinks">
            <bool>true</bool>
@@ -264,8 +261,8 @@
         </property>
         <property name="sizeHint" stdset="0">
          <size>
-          <width>40</width>
-          <height>20</height>
+          <width>20</width>
+          <height>39</height>
          </size>
         </property>
        </spacer>

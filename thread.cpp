@@ -163,10 +163,10 @@ void Worker::deleteModWorker()
 
         emit status(filePath);
 
-        if(fiFilePath.exists())
+        if(!fiFilePath.exists())
         {
             missing++;
-            emit status("Missing file: "+filePath+".", true);
+            emit status("Missing file: "+filePath, true);
         }
         else if(fiFilePath.isFile() && QFile(filePath).remove())
         {

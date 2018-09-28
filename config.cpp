@@ -12,7 +12,7 @@ Config::Config()
 
     //Set Paths
     cfgPath = exePath+"/config.cfg";
-    modPath = exePath+"/mods";
+    modPath = exePath.substr(0, exePath.find_last_of("/"))+"/mods"; //parent folder of "bin" in current deploy structure
     outFilesPath = exePath+"/out_files.txt";
     backupFilesPath = exePath+"/backup_files.txt";
 
