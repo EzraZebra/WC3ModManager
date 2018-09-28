@@ -3,7 +3,7 @@ Especially with the latest patches, the most reliable way to make a mod in Warcr
 
 This project aims to make it as easy as possible to switch between mods - which should also make it easy to use old mods which are released as MPQs.
 
-The binary will be released on [The Hive Workshop](https://www.hiveworkshop.com).
+The binary can be downloaded on [The Hive Workshop](https://www.hiveworkshop.com/threads/wc3-mod-manager.308948/).
 
 ## Core Features
 * Toggle "Allow Local Files" - enable/disable the mod
