@@ -10,6 +10,6 @@ The binary will be released on [The Hive Workshop](https://www.hiveworkshop.com)
 * Mount/Unmount mod - automatically move the mod files to and from the game folder
 
 # Contributing
-WC3 Mod Manager is currently being developed in [Qt Creator 4.7.0](https://www.qt.io/download-qt-installer) and built with Qt 5.11.1/MinGW 32 bit. I'm not sure if other IDEs can open and build the project.
+WC3 Mod Manager is currently being developed in [Qt Creator 4.7.0](https://www.qt.io/download-qt-installer) and built with Qt 5.11.1/MinGW 32 bit. I'm not sure if other IDEs can open and build the project. MSVC should be able to compile as well, but I haven't tested.
 
 I'm new to GitHub, so I'm not familiar with the usual procedures. Please feel free to fork, make pull requests, etc.
