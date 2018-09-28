@@ -1,18 +1,13 @@
 #include "config.h"
 #include "utils.h"
+#include <QCoreApplication>
 
 Config::Config()
 {
-    //exe path
-    wchar_t exePathBuffer[MAX_PATH];
-    GetModuleFileName(nullptr, exePathBuffer, MAX_PATH);
-    std::string exePath = utils::narrow_str(exePathBuffer);
-    exePath = exePath.substr(0, exePath.find_last_of("\\/"));
-    utils::valueCorrect("path", &exePath);
-
     //Set Paths
+    std::string exePath = QCoreApplication::applicationDirPath().toStdString();
     cfgPath = exePath+"/config.cfg";
-    modPath = exePath.substr(0, exePath.find_last_of("/"))+"/mods"; //parent folder of "bin" in current deploy structure
+    modPath = exePath+"/mods"; //parent folder of "bin" in current deploy structure
     outFilesPath = exePath+"/out_files.txt";
     backupFilesPath = exePath+"/backup_files.txt";
 
