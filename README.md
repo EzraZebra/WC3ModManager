@@ -1,4 +1,4 @@
-# WC3 Mod Manager
+![WC3 Mod Manager](https://raw.githubusercontent.com/EzraZebra/WC3ModManager/master/img/logo.png)
 Especially with the latest patches, the most reliable way to make a mod in Warcraft III is using the "Allow Local Files" registry setting, which, as the name implies, allows files in the game's install folder to be read by the game.
 
 This project aims to make it as easy as possible to switch between mods - which should also make it easy to use old mods which are released as MPQs.
