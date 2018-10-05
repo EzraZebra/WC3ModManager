@@ -2,6 +2,15 @@
 #define THREAD_H
 
 #include "mainwindow.h"
+#include <fstream>
+
+#define PROCFILE_MOVE 0
+#define PROCFILE_COPY 1
+#define PROCFILE_LINK 2
+#define PROCFILE_SUCCESS 0
+#define PROCFILE_FAILED 1
+#define PROCFILE_MISSING 2
+#define PROCFILE_BACKUP_EXT ".wmmbackup"
 
 namespace Ui {
 class FileStatus;
@@ -33,10 +42,15 @@ class Worker : public QObject
 {
     Q_OBJECT
 
-    std::pair<int, std::string> moveFile(QString, QString, bool=false);
-    void removePath(QString, QString="");
     Config *config;
     QString mod;
+    std::ofstream out_files;
+    std::ofstream backup_files;
+
+    std::array<int, 3> mountModIterator(QString, QString);
+    std::pair<int, std::string> moveFile(QString, QString, int=PROCFILE_MOVE);
+    int deleteFile(QString);
+    void removePath(QString, QString="");
 
 public:
     Worker(Config *, QString);
@@ -44,13 +58,14 @@ public:
 
 public slots:
     void scanModWorker(int);
-    void moveFolderWorker(QString, QString, bool=false, bool=false);
+    void mountModWorker();
     void unmountModWorker(bool=false);
     void deleteModWorker();
+    void moveFolderWorker(QString, QString, int=PROCFILE_MOVE);
 
 signals:
-    void resultReady(QString, int, int, int, bool, bool=false);
     void scanModUpdate(int, QString, QString);
+    void resultReady(QString, int, int, int, bool, bool=false);
     void status(QString, bool=false);
     void appendAction(QString);
 };
@@ -60,10 +75,8 @@ class Controller : public QObject
     Q_OBJECT
 
     QThread workerThread;
-    MainWindow *mw;
     QString action;
     QString mod;
-    bool showStatus;
     FileStatus *fileStatus;
 
 public:
@@ -79,9 +92,10 @@ private slots:
 
 signals:
     void scanMod(int);
-    void moveFolder(QString, QString, bool=false, bool=false);
-    void deleteMod();
+    void mountMod();
     void unmountMod(bool=false);
+    void deleteMod();
+    void moveFolder(QString, QString, int=PROCFILE_MOVE);
 };
 
 #endif // THREAD_H

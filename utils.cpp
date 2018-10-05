@@ -1,18 +1,14 @@
 #include "utils.h"
 #include <sstream>
 #include <QFileInfo>
+#include <QDir>
 
 namespace utils {
-    std::string int2string(int i)
+    std::string i2s(int i)
     {
         std::ostringstream stream;
         stream << i;
         return stream.str();
-    }
-
-    void valueCorrect(std::string field, std::string *value)
-    {
-        if(field == "GamePath" || field == "path") replace(value->begin(), value->end(), '\\', '/');
     }
 
     std::string narrow_str(const std::wstring& str)
@@ -48,12 +44,11 @@ namespace utils {
             {
                 DWORD result;
                 if(RegQueryValueEx(hKey, key, nullptr, &type, LPBYTE(&result), &size) == ERROR_SUCCESS)
-                    sResult = int2string(static_cast<int>(result));
+                    sResult = i2s(static_cast<int>(result));
             }
         }
 
         RegCloseKey(hKey);
-        valueCorrect(narrow_str(key), &sResult);
 
         return sResult;
     }
@@ -84,7 +79,6 @@ namespace utils {
         }
 
         RegCloseKey(hKey);
-        valueCorrect("path", &sResult);
 
         return sResult;
     }
@@ -112,16 +106,6 @@ namespace utils {
             getline(txtReader, line);
             return true;
         }
-    }
-
-    std::pair<std::string, std::string> TxtReader::line2setting()
-    {
-        size_t pos = line.find_first_of('=');
-
-        std::string field = line.substr(0, pos),
-                    value = line.substr(pos+1);
-
-        return { field, value };
     }
 
     TxtReader::~TxtReader()

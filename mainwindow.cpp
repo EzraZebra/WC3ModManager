@@ -284,14 +284,13 @@ void MainWindow::mountMod()
             if(QFileInfo(QString::fromStdString(gamePath)).isDir())
             {
                 config->setSetting("Mounted", selectedMod.toStdString());
-                config->setSetting("MountedTo", gamePath);
                 config->setSetting("MountedSize", ui->modList->item(iSelectedMod, 1)->text().toStdString());
                 config->setSetting("MountedCount", ui->modList->item(iSelectedMod, 2)->text().toStdString());
                 config->saveConfig();
 
                 Controller *c = new Controller(this, "Mounting", selectedMod);
                 connect(c->worker, &Worker::resultReady, this, &MainWindow::mountModReady);
-                emit c->moveFolder(QString::fromStdString(config->modPath)+"/"+selectedMod, QString::fromStdString(gamePath), true);
+                emit c->mountMod();
                 mounting = true;
             }
             else status("Invalid Warcraft III folder.", true);
@@ -317,7 +316,6 @@ void MainWindow::mountModReady(QString modName, int success, int failed, int mis
     else
     {
         config->deleteSetting("Mounted");
-        config->deleteSetting("MountedTo");
         config->deleteSetting("MountedSize");
         config->deleteSetting("MountedCount");
         config->deleteSetting("MountedError");
@@ -361,7 +359,6 @@ void MainWindow::unmountModReady(QString modName, int success, int failed, int m
     {
         scanMods = true;
         config->deleteSetting("Mounted");
-        config->deleteSetting("MountedTo");
         config->deleteSetting("MountedSize");
         config->deleteSetting("MountedCount");
         config->deleteSetting("MountedError");
@@ -405,32 +402,32 @@ void MainWindow::getMount(bool setFocus)
 void MainWindow::addMod()
 {
     status("Adding mod...");
-    QString qsFolder = QFileDialog::getExistingDirectory(this, tr("Add Mod"), "",
+    QString folder = QFileDialog::getExistingDirectory(this, tr("Add Mod"), "",
                                                         QFileDialog::ShowDirsOnly | QFileDialog::HideNameFilterDetails);
 
-    if(qsFolder != "")
+    if(folder != "")
     {
         QMessageBox copyMove(this);
         copyMove.setWindowTitle("Copy or move?");
-        copyMove.setText("Do you want to copy or move this folder?\n"+qsFolder);
-        copyMove.addButton("Copy", QMessageBox::ActionRole);
-        copyMove.addButton("Move", QMessageBox::ActionRole);
+        copyMove.setText("Do you want to copy or move this folder?\n"+folder);
+        copyMove.addButton("Move", QMessageBox::ActionRole); //btn index: 0 (== PROCFILE_MOVE)
+        copyMove.addButton("Copy", QMessageBox::ActionRole); //btn index: 1 (== PROCFILE_COPY)
         copyMove.addButton(QMessageBox::Cancel);
         copyMove.setIcon(QMessageBox::Warning);
 
         int result = copyMove.exec();
 
-        if(result == 0 || result == 1)
+        if(result == PROCFILE_MOVE || result == PROCFILE_COPY)
         {
-            QString modName = QDir(qsFolder).dirName(),
-                    qsNewFolder = QString::fromStdString(config->modPath)+"/"+modName;
-            if(!QDir(qsNewFolder).exists())
+            QString modName = QDir(folder).dirName(),
+                    newFolder = QString::fromStdString(config->modPath)+"/"+modName;
+            if(!QDir(newFolder).exists())
             {
                 status("Adding "+modName+"...");
 
                 Controller *c = new Controller(this, "Adding", modName);
                 connect(c->worker, &Worker::resultReady, this, &MainWindow::addModReady);
-                emit c->moveFolder(qsFolder, qsNewFolder, false, result == 0);
+                emit c->moveFolder(folder, newFolder, result);
             }
             else status("A mod with that name already exists.", true);
         }
@@ -445,20 +442,19 @@ void MainWindow::addModReady(QString modName, int success, int failed, int missi
 void MainWindow::openModFolder()
 {
     QString path = QString::fromStdString(config->modPath);
-    QString dirName = "Mods";
+    QString modName = "Mods";
 
     if(modSelected())
     {
         QString modName = ui->modList->item(ui->modList->currentRow(), 0)->text();
         path += "/"+modName;
-        dirName = modName;
     }
 
-    status("Opening "+dirName+" folder...");
+    status("Opening "+modName+" folder...");
 
     if(QDesktopServices::openUrl(QUrl::fromLocalFile(path)))
-        status(dirName+" folder opened.");
-    else status("Failed to open "+dirName+" folder.");
+        status(modName+" folder opened.");
+    else status("Failed to open "+modName+" folder.");
 }
 
 void MainWindow::renameModAction()
@@ -534,7 +530,7 @@ bool MainWindow::modSelected()
 {
     if(ui->modList->currentRow() < 0 || ui->modList->currentRow() >= ui->modList->rowCount())
     {
-        status("Select a mod first.");
+        status("No mod selected.");
         return false;
     }
     return true;
@@ -588,9 +584,9 @@ std::string MainWindow::result2errorMsg(std::string action,int success, int fail
     else if(totErrors > 0) errorMsg = action+" failed";
     else errorMsg = "No files to "+cAction;
 
-    errorMsg += ": "+utils::int2string(success)+" files "+pAction;
-    if(failed > 0) errorMsg += ", "+utils::int2string(failed)+" files failed";
-    if(missing > 0) errorMsg += ", "+utils::int2string(missing)+" files missing";
+    errorMsg += ": "+utils::i2s(success)+" files "+pAction;
+    if(failed > 0) errorMsg += ", "+utils::i2s(failed)+" files failed";
+    if(missing > 0) errorMsg += ", "+utils::i2s(missing)+" files missing";
 
     return errorMsg;
 }

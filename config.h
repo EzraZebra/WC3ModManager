@@ -7,6 +7,7 @@ class Config
 {
     std::string cfgPath;
     std::map<std::string, std::string> settings;
+    std::pair<std::string, std::string> line2setting(std::string);
 
 public:
     Config();

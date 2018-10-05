@@ -1,6 +1,7 @@
 #include "config.h"
 #include "utils.h"
 #include <QCoreApplication>
+#include <QDir>
 
 Config::Config()
 {
@@ -15,7 +16,7 @@ Config::Config()
     utils::TxtReader txtReader(cfgPath);
     while(txtReader.next())
     {
-        std::pair<std::string, std::string> setting = txtReader.line2setting();
+        std::pair<std::string, std::string> setting = line2setting(txtReader.line);
         setSetting(setting.first, setting.second);
     }
 
@@ -57,7 +58,7 @@ void Config::setSetting(std::string key, std::string value)
         if(value == "") deleteSetting(key);
         else
         {
-            utils::valueCorrect(key, &value);
+            if(key == "GamePath") replace(value.begin(), value.end(), '\\', '/');
             if(settings.find(key) == settings.end()) settings.insert({ key, value });
             else settings.find(key)->second = value;
         }
@@ -75,6 +76,16 @@ std::string Config::getSetting(std::string key)
     if(settings.find(key) == settings.end())
         return "";
     else return settings.find(key)->second;
+}
+
+std::pair<std::string, std::string> Config::line2setting(std::string line)
+{
+    size_t pos = line.find_first_of('=');
+
+    std::string field = line.substr(0, pos),
+                value = line.substr(pos+1);
+
+    return { field, value };
 }
 
 void Config::saveConfig()

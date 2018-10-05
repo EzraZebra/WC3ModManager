@@ -23,6 +23,7 @@ class MainWindow : public QMainWindow
     void getMount(bool=false);
     bool modSelected();
     void status(QString, bool=false);
+
     QString result2statusMsg(QString, QString, int, int, int, bool=false, bool=false);
     std::string result2errorMsg(std::string, int, int, int, bool=false, bool=false);
     std::map<QString, QString> action_dict(QString);

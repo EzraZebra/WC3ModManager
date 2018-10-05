@@ -17,28 +17,22 @@ Settings::Settings(QWidget *parent, Config *newConfig) :
 
 void Settings::loadSettings()
 {
-    ui->dirEdit->setText(QString::fromStdString(config->getSetting("GamePath")));
-
-    if(config->getSetting("hideEmptyMods") == "1") ui->hideEmptyCbx->setChecked(true);
-    else ui->hideEmptyCbx->setChecked(false);
+    ui->dirEdit->setText(QDir::toNativeSeparators(QString::fromStdString(config->getSetting("GamePath"))));
+    ui->hideEmptyCbx->setChecked(config->getSetting("hideEmptyMods") == "1");
 }
 
 void Settings::save(QAbstractButton *btn)
 {
     if(ui->buttonBox->standardButton(btn) == QDialogButtonBox::Apply)
     {
-        QString qsGamePath = ui->dirEdit->text();
-        QFileInfo fiGamePath(qsGamePath);
+        QString gamePath = ui->dirEdit->text();
+        QFileInfo fiGamePath(gamePath);
         if(!fiGamePath.exists() || !fiGamePath.isDir())
-            QMessageBox::warning(this, tr("Error"), tr("Warcraft III Folder: invalid folder."));
+            QMessageBox::warning(this, "Error", "Warcraft III Folder: invalid folder.");
         else
         {
-            std::string sGamePath = qsGamePath.toStdString();
-            utils::valueCorrect("GamePath", &sGamePath);
-            config->setSetting("GamePath", sGamePath);
-
+            config->setSetting("GamePath", gamePath.toStdString());
             config->setSetting("hideEmptyMods", ui->hideEmptyCbx->isChecked() ? "1" : "0");
-
             config->saveConfig();
             accept();
         }
@@ -47,17 +41,12 @@ void Settings::save(QAbstractButton *btn)
 
 void Settings::browseGame()
 {
-    QString qsFolder = ui->dirEdit->text();
+    QString folder = ui->dirEdit->text();
 
-    qsFolder = QFileDialog::getExistingDirectory(this, tr("Warcraft III Folder"), qsFolder,
+    folder = QFileDialog::getExistingDirectory(this, tr("Warcraft III Folder"), folder,
                                                  QFileDialog::ShowDirsOnly | QFileDialog::HideNameFilterDetails);
 
-    if(qsFolder != "")
-    {
-        std::string sFolder = qsFolder.toStdString();
-        utils::valueCorrect("GamePath", &sFolder);
-        ui->dirEdit->setText(QString::fromStdString(sFolder));
-    }
+    if(folder != "") ui->dirEdit->setText(QDir::toNativeSeparators(folder));
 }
 
 int Settings::exec()

@@ -2,6 +2,8 @@
 #include "utils.h"
 #include "ui_filestatus.h"
 
+#include <iostream>
+
 // FILESTATUS DIALOG
 FileStatus::FileStatus(QWidget *parent) :
     QDialog(parent),
@@ -57,6 +59,8 @@ void FileStatus::result(bool enableForce)
         disconnect(ui->forceBtn, SIGNAL(clicked()), this, SLOT(forceUnmountClicked()));
         ui->forceBtn->hide();
     }
+
+    ui->detailsTxt->insertPlainText("-----------------\n\n");
 }
 
 void FileStatus::abort()
@@ -103,92 +107,72 @@ void Worker::scanModWorker(int row)
     else emit scanModUpdate(row, "0 MB", "0 files");
 }
 
-void Worker::moveFolderWorker(QString src, QString dst, bool savePaths, bool copy)
+void Worker::mountModWorker()
 {
-    int success = 0, failed = 0, missing = 0;
+    std::array<int, 3> result = mountModIterator(QString::fromStdString(config->modPath)+"/"+mod,
+                                                 QString::fromStdString(config->getSetting("GamePath")));
 
-    QDirIterator itSrc(src, QDir::NoDotAndDotDot|QDir::Files, QDirIterator::Subdirectories);
-    if(!abort && itSrc.hasNext())
+    if(out_files.is_open()) out_files.close();
+    if(backup_files.is_open()) backup_files.close();
+
+    emit resultReady(mod, result[PROCFILE_SUCCESS], result[PROCFILE_FAILED],
+                          result[PROCFILE_MISSING], abort);
+}
+
+std::array<int, 3> Worker::mountModIterator(QString dir, QString rootDst)
+{
+    std::array<int, 3> result{ 0, 0, 0 };
+
+    QDirIterator itDir(dir, QDir::NoDotAndDotDot|QDir::AllEntries);
+    if(!abort && itDir.hasNext())
     {
-        std::ofstream out_files, backup_files;
+        QString rootSrc = QString::fromStdString(config->modPath)+"/"+mod;
 
         do
         {
-            itSrc.next();
-            QString relativePath = itSrc.filePath().remove(src+"/");
+            itDir.next();
+            QString src = itDir.filePath(),
+                    relativePath = src;
+            relativePath.remove(rootSrc+"/");
+            QString dst = rootDst+"/"+relativePath;
+            QFileInfo fiDst = QFileInfo(dst);
 
             emit status(relativePath);
 
-            std::pair<int, std::string> result = moveFile(itSrc.filePath(), dst+"/"+relativePath, copy);
-            if(result.first == 0)
+            if(!fiDst.isSymLink() && fiDst.exists() && fiDst.isDir())
             {
-                success++;
-                if(savePaths)
+                std::array<int, 3> resultIt = mountModIterator(src, rootDst);
+                result[PROCFILE_SUCCESS] += resultIt[PROCFILE_SUCCESS];
+                result[PROCFILE_FAILED] += resultIt[PROCFILE_FAILED];
+                result[PROCFILE_MISSING] += resultIt[PROCFILE_MISSING];
+            }
+            else
+            {
+                std::pair<int, std::string> resultIt = moveFile(src, dst, PROCFILE_LINK);
+
+                result[unsigned(resultIt.first)]++;
+
+                if(resultIt.first == PROCFILE_SUCCESS)
                 {
                     if(!out_files.is_open()) out_files.open(config->outFilesPath.c_str());
-                    out_files << relativePath.toStdString() << std::endl;
+                    out_files << dst.toStdString() << std::endl;
+                }
+
+                if(resultIt.second != "")
+                {
+                    if(!backup_files.is_open()) backup_files.open(config->backupFilesPath.c_str());
+                    backup_files << resultIt.second << std::endl;
                 }
             }
-            else if(result.first == 2) missing++;
-            else failed++;
-
-            if(savePaths && result.second != "")
-            {
-                if(!backup_files.is_open()) backup_files.open(config->backupFilesPath.c_str());
-                backup_files << result.second << std::endl;
-            }
-        } while(!abort && itSrc.hasNext());
-
-        if(savePaths)
-        {
-            if(out_files.is_open()) out_files.close();
-            if(backup_files.is_open()) backup_files.close();
-        }
+        } while(!abort && itDir.hasNext());
     }
 
-    emit resultReady(mod, success, failed, missing, abort);
-}
-
-void Worker::deleteModWorker()
-{
-    int success = 0, failed = 0, missing = 0;
-    QString deleteModPath = QString::fromStdString(config->modPath)+"/"+mod;
-
-    QDirIterator itMod(deleteModPath, QDir::NoDotAndDotDot|QDir::AllEntries, QDirIterator::Subdirectories);
-    while(!abort && itMod.hasNext())
-    {
-        itMod.next();
-        QString filePath = itMod.filePath();
-        QFileInfo fiFilePath = itMod.fileInfo();
-
-        emit status(filePath);
-
-        if(!fiFilePath.exists())
-        {
-            missing++;
-            emit status("Missing file: "+filePath, true);
-        }
-        else if(fiFilePath.isFile() && QFile(filePath).remove())
-        {
-            success++;
-            removePath(fiFilePath.absolutePath(), QString::fromStdString(config->modPath));
-        }
-        else if(fiFilePath.isDir()) removePath(filePath, QString::fromStdString(config->modPath));
-        else
-        {
-            failed++;
-            emit status("Failed to delete file: "+filePath, true);
-        }
-    }
-
-    QDir().rmdir(deleteModPath);
-
-    emit resultReady(mod, success, failed, missing, abort);
+    return result;
 }
 
 void Worker::unmountModWorker(bool force)
 {
-    int success = 0, failed = 0, missing = 0;
+    std::array<int, 3> result{ 0, 0, 0 };
     utils::TxtReader* txtReader = new utils::TxtReader(config->outFilesPath);
 
     if(!abort && txtReader->next())
@@ -199,17 +183,21 @@ void Worker::unmountModWorker(bool force)
             if(txtReader->line != "")
             {
                 QString qsLine = QString::fromStdString(txtReader->line);
+                QFileInfo fiLine(qsLine);
                 emit status(qsLine);
 
-                int result = moveFile(QString::fromStdString(config->getSetting("MountedTo"))+"/"+qsLine,
-                                      QString::fromStdString(config->modPath)+"/"+mod+"/"+qsLine).first;
-                if(result == 0) success++;
-                else
+                int resultIt = PROCFILE_FAILED;
+                if(fiLine.isSymLink()) resultIt = deleteFile(qsLine);
+                else if(!fiLine.exists())
                 {
-                    if(!force) newOutFiles += txtReader->line+"\n";
-                    if(result == 2) missing++;
-                    else failed++;
+                    resultIt = PROCFILE_MISSING;
+                    emit status("Missing file: "+qsLine, true);
                 }
+                else emit status("Not a symbolic link: "+qsLine, true);
+
+                result[unsigned(resultIt)]++;
+                if(!force && resultIt != PROCFILE_SUCCESS)
+                    newOutFiles += txtReader->line+"\n";
             }
         } while(!abort && txtReader->next());
 
@@ -228,17 +216,17 @@ void Worker::unmountModWorker(bool force)
         {
             if(txtReader->line != "")
             {
-                QString qsLine = QString::fromStdString(txtReader->line);
-                emit status(QFileInfo(qsLine).fileName());
-                int result = moveFile(qsLine, qsLine.chopped(qsLine.lastIndexOf("."))).first;
+                QString qsLine = QString::fromStdString(txtReader->line),
+                        dst = qsLine;
+                dst.truncate(qsLine.lastIndexOf(PROCFILE_BACKUP_EXT));
 
-                if(result == 0) success++;
-                else
-                {
-                    if(!force) newBackupFiles += txtReader->line+"\n";
-                    if(result == 2) missing++;
-                    else failed++;
-                }
+                emit status(QFileInfo(qsLine).fileName());
+
+                int resultIt = moveFile(qsLine, dst).first;
+
+                result[unsigned(resultIt)]++;
+                if(!force && resultIt != PROCFILE_SUCCESS)
+                    newBackupFiles += txtReader->line+"\n";
             }
         } while(!abort && txtReader->next());
 
@@ -246,24 +234,46 @@ void Worker::unmountModWorker(bool force)
         backup_files << newBackupFiles;
         backup_files.close();
 
-        emit appendAction(" ");
+        emit appendAction("");
     }
 
-    emit resultReady(mod, success, failed, missing, abort, force);
+    emit resultReady(mod, result[PROCFILE_SUCCESS], result[PROCFILE_FAILED], result[PROCFILE_MISSING], abort, force);
 }
 
-std::pair<int, std::string> Worker::moveFile(QString src, QString dst, bool copy)
+void Worker::moveFolderWorker(QString src, QString dst, int mode)
+{
+    std::array<int, 3> result{ 0, 0, 0 };
+
+    QDirIterator itSrc(src, QDir::NoDotAndDotDot|QDir::Files, QDirIterator::Subdirectories);
+    while(!abort && itSrc.hasNext())
+    {
+        itSrc.next();
+        QString relativePath = itSrc.filePath().remove(src+"/"),
+                itDstPath = dst+"/"+relativePath;
+
+        emit status(relativePath);
+
+        std::pair<int, std::string> resultIt = moveFile(itSrc.filePath(), itDstPath, mode);
+
+        result[unsigned(resultIt.first)]++;
+    }
+
+    emit resultReady(mod, result[PROCFILE_SUCCESS], result[PROCFILE_FAILED], result[PROCFILE_MISSING], abort);
+}
+
+std::pair<int, std::string> Worker::moveFile(QString src, QString dst, int mode)
 {
     std::string backupPath = "";
-    int result = 1;
+    int result = PROCFILE_FAILED;
     QFileInfo fiSrc(src);
 
-    if(fiSrc.isFile())
+    if(fiSrc.isSymLink() || fiSrc.isFile() || (mode == PROCFILE_LINK && fiSrc.isDir()))
     {
+        QFileInfo fiDst(dst);
         //if dst exists, make backup
-        if(QFileInfo(dst).exists())
+        if(fiDst.isSymLink() || fiDst.exists())
         {
-            QString qsBackupPath = dst+".wmmbackup";
+            QString qsBackupPath = dst+PROCFILE_BACKUP_EXT;
             QString newBackupPath = qsBackupPath;
             QFileInfo fiBackup(qsBackupPath);
             for(int i=2; fiBackup.exists(); i++)
@@ -276,26 +286,101 @@ std::pair<int, std::string> Worker::moveFile(QString src, QString dst, bool copy
             else
             {
                 emit status("Failed to create backup of "+dst+"\n-->Skipping file: "+src, true);
-                return { 1, "" };
+                return { PROCFILE_FAILED, "" };
             }
         }
-        else QDir().mkpath(QFileInfo(dst).absolutePath());
+        else QDir().mkpath(fiDst.absolutePath());
 
-        if(copy ? QFile::copy(src, dst) : QFile::rename(src, dst))
+        switch(mode)
         {
-            result = 0;
-            if(!copy) removePath(fiSrc.absolutePath());
+            case PROCFILE_MOVE:
+                if(QFile::rename(src, dst))
+                {
+                    result = PROCFILE_SUCCESS;
+                    removePath(fiSrc.absolutePath());
+                }
+                break;
+
+            case PROCFILE_COPY:
+                if(QFile::copy(src, dst)) result = PROCFILE_SUCCESS;
+                break;
+
+            case PROCFILE_LINK:
+                QProcess cmd(this);
+                QString mklink = "mklink";
+                if(QFileInfo(src).isDir()) mklink += " /d";
+                mklink += " \""+QDir::toNativeSeparators(dst)+"\" \""+QDir::toNativeSeparators(src)+"\"";
+
+                cmd.setNativeArguments(mklink);
+                cmd.start("cmd /c");
+                if(cmd.waitForFinished() && cmd.exitStatus() == QProcess::NormalExit && cmd.exitCode() == 0)
+                    result = PROCFILE_SUCCESS;
         }
     }
     else if(src != "" && !fiSrc.exists())
     {
-        result = 2;
+        result = PROCFILE_MISSING;
         emit status("Missing file: "+src, true);
     }
 
-    if(result == 1) emit status("Failed to "+tr(copy ? "copy" : "move")+" file: "+src, true);
+    if(result == PROCFILE_FAILED)
+    {
+        QString modeStr = "process";
+        switch(mode)
+        {
+            case PROCFILE_MOVE: modeStr = "move";
+                break;
+            case PROCFILE_COPY: modeStr = "copy";
+                break;
+            case PROCFILE_LINK: modeStr = "create symbolic link to";
+        }
+        emit status("Failed to "+modeStr+" file: "+src, true);
+    }
 
     return { result, backupPath };
+}
+
+void Worker::deleteModWorker()
+{
+    std::array<int, 3> result{ 0, 0, 0 };
+    QString deleteModPath = QString::fromStdString(config->modPath)+"/"+mod;
+
+    QDirIterator itMod(deleteModPath, QDir::NoDotAndDotDot|QDir::AllEntries, QDirIterator::Subdirectories);
+    while(!abort && itMod.hasNext())
+    {
+        itMod.next();
+        QString filePath = itMod.filePath();
+
+        emit status(filePath);
+
+        if(!itMod.fileInfo().isSymLink() && itMod.fileInfo().isDir()) removePath(filePath, QString::fromStdString(config->modPath));
+        else result[unsigned(deleteFile(filePath))]++;
+    }
+
+    QDir().rmdir(deleteModPath);
+
+    emit resultReady(mod, result[PROCFILE_SUCCESS], result[PROCFILE_FAILED], result[PROCFILE_MISSING], abort);
+}
+
+int Worker::deleteFile(QString filePath)
+{
+    QFileInfo fiFilePath(filePath);
+    if(!fiFilePath.isSymLink() && !fiFilePath.exists())
+    {
+        emit status("Missing file: "+filePath, true);
+        return PROCFILE_MISSING;
+    }
+    else if(   (fiFilePath.isFile() && QFile(filePath).remove())
+            || (fiFilePath.isSymLink() && fiFilePath.isDir() && QDir().rmdir(filePath)))
+    {
+        removePath(fiFilePath.absolutePath(), QString::fromStdString(config->modPath));
+        return PROCFILE_SUCCESS;
+    }
+    else
+    {
+        emit status("Failed to delete file: "+filePath, true);
+        return PROCFILE_FAILED;
+    }
 }
 
 void Worker::removePath(QString path, QString stopPath)
@@ -318,20 +403,19 @@ void Worker::removePath(QString path, QString stopPath)
     }
 }
 
-Controller::Controller(MainWindow *newMw, QString newAction, QString newMod, bool newStatus)
+Controller::Controller(MainWindow *mw, QString newAction, QString newMod, bool showStatus)
 {
-    mw = newMw;
     action = newAction;
     mod = newMod;
-    showStatus = newStatus;
 
     worker = new Worker(mw->config, mod);
     worker->moveToThread(&workerThread);
     connect(&workerThread, &QThread::finished, worker, &QObject::deleteLater);
     connect(this, &Controller::scanMod, worker, &Worker::scanModWorker);
-    connect(this, &Controller::moveFolder, worker, &Worker::moveFolderWorker);
-    connect(this, &Controller::deleteMod, worker, &Worker::deleteModWorker);
+    connect(this, &Controller::mountMod, worker, &Worker::mountModWorker);
     connect(this, &Controller::unmountMod, worker, &Worker::unmountModWorker);
+    connect(this, &Controller::deleteMod, worker, &Worker::deleteModWorker);
+    connect(this, &Controller::moveFolder, worker, &Worker::moveFolderWorker);
 
     if(showStatus)
     {

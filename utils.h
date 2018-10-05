@@ -3,11 +3,11 @@
 
 #include <windows.h>
 #include <fstream>
+#include <QString>
 
 namespace utils
 {
-    std::string int2string(int);
-    void valueCorrect(std::string, std::string*);
+    std::string i2s(int);
     std::string narrow_str(const std::wstring&);
 
     std::string regGet(const wchar_t*, DWORD);
@@ -24,7 +24,6 @@ namespace utils
             ~TxtReader();
             std::string line;
             bool next();
-            std::pair<std::string, std::string> line2setting();
     };
 };
 
