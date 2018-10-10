@@ -98,7 +98,7 @@ namespace utils {
     {
         if(invalidPath || !txtReader)
         {
-            if(!invalidPath) txtReader.close();
+            if(!invalidPath && txtReader.is_open()) txtReader.close();
             return false;
         }
         else

@@ -306,14 +306,9 @@ std::pair<int, std::string> Worker::moveFile(QString src, QString dst, int mode)
                 break;
 
             case PROCFILE_LINK:
-                QProcess cmd(this);
-                QString mklink = "mklink";
-                if(QFileInfo(src).isDir()) mklink += " /d";
-                mklink += " \""+QDir::toNativeSeparators(dst)+"\" \""+QDir::toNativeSeparators(src)+"\"";
-
-                cmd.setNativeArguments(mklink);
-                cmd.start("cmd /c");
-                if(cmd.waitForFinished() && cmd.exitStatus() == QProcess::NormalExit && cmd.exitCode() == 0)
+                if(CreateSymbolicLinkA(QDir::toNativeSeparators(dst).toStdString().c_str(),
+                                       QDir::toNativeSeparators(src).toStdString().c_str(),
+                                       QFileInfo(src).isDir() ? SYMBOLIC_LINK_FLAG_DIRECTORY : 0x0))
                     result = PROCFILE_SUCCESS;
         }
     }
