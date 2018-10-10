@@ -1,17 +1,19 @@
 ![WC3 Mod Manager](https://raw.githubusercontent.com/EzraZebra/WC3ModManager/master/img/logo.png)
 
-Especially with the latest patches, the most reliable way to make a mod in Warcraft III is using the "Allow Local Files" registry setting, which, as the name implies, allows files in the game's install folder to be read by the game.
+The easiest and most reliable way to make a mod in Warcraft III is using the "Allow Local Files" registry setting, which allows custom files in the game's install folder to be read by the game.
 
-This project aims to make it as easy as possible to switch between mods - which should also make it easy to use old mods which are released as MPQs.
+This project aims to make it as easy as possible to manage and play mods.
 
-The binary can be downloaded on [The Hive Workshop](https://www.hiveworkshop.com/threads/wc3-mod-manager.308948/).
+The latest binary can be downloaded on [The Hive Workshop](https://www.hiveworkshop.com/threads/wc3-mod-manager.308948/).
 
 ## Core Features
-* Toggle "Allow Local Files" - enable/disable the mod
+* Mount/Unmount mod - create symbolic links in the WC3 folder to the selected mod's files
+* Toggle "Allow Local Files" - enable/disable any custom files in the WC3 folder
 * Toggle "Preferred Game Version" - switch between vanilla and expansion
-* Mount/Unmount mod - automatically move the mod files to and from the game folder
 
 # Contributing
-WC3 Mod Manager is currently being developed in [Qt Creator 4.7.0](https://www.qt.io/download-qt-installer) and built with Qt 5.11.1/MinGW 32 bit. I'm not sure if other IDEs can open and build the project. MSVC should be able to compile as well, but I haven't tested.
+WC3 Mod Manager is currently being developed in [Qt Creator 4.7.1](https://www.qt.io/download-qt-installer) and built with Qt 5.12.0/MinGW 7.3.0 64bit.
 
-I'm new to GitHub, so I'm not familiar with the usual procedures. Please feel free to fork, make pull requests, etc.
+Other IDEs should be able to open and build the project, but you'll need Qt5's libraries. MSVC should be able to compile as well, but I haven't tested.
+
+Please feel free to fork, make pull requests, etc.
