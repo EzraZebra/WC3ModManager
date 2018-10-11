@@ -42,7 +42,8 @@ FORMS += \
         mainwindow.ui \
     settings.ui \
     filestatus.ui \
-    about.ui
+    about.ui \
+    splashscreen.ui
 
 RESOURCES += \
     icons.qrc \

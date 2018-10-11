@@ -47,13 +47,13 @@ class Worker : public QObject
     std::ofstream out_files;
     std::ofstream backup_files;
 
+    int deleteFile(QString);
     std::array<int, 3> mountModIterator(QString, QString);
     std::pair<int, std::string> moveFile(QString, QString, int=PROCFILE_MOVE);
-    int deleteFile(QString);
     void removePath(QString, QString="");
 
 public:
-    Worker(Config *, QString);
+    Worker(Config*, QString="");
     bool abort = false;
 
 public slots:
@@ -64,7 +64,8 @@ public slots:
     void moveFolderWorker(QString, QString, int=PROCFILE_MOVE);
 
 signals:
-    void scanModUpdate(int, QString, QString);
+    void scanModUpdate(QString, QString, int);
+    void scanModDone(QString, QString);
     void resultReady(QString, int, int, int, bool, bool=false);
     void status(QString, bool=false);
     void appendAction(QString);
@@ -77,7 +78,7 @@ class Controller : public QObject
     QThread workerThread;
     QString action;
     QString mod;
-    FileStatus *fileStatus;
+    FileStatus *fileStatus=nullptr;
 
 public:
     Controller(MainWindow *, QString, QString, bool=true);
@@ -91,7 +92,7 @@ private slots:
     void abort();
 
 signals:
-    void scanMod(int);
+    void scanMod(int=0);
     void mountMod();
     void unmountMod(bool=false);
     void deleteMod();

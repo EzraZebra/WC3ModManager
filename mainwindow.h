@@ -1,7 +1,10 @@
 #ifndef MAINWINDOW_H
 #define MAINWINDOW_H
 
-#define WINVER _WIN32_WINNT_WIN7
+#define WINVER _WIN32_WINNT_WIN7 //Must be at least Vista for CreateSymbolicLinkA()
+#ifdef _WIN32_WINNT
+    #undef _WIN32_WINNT
+#endif
 #define _WIN32_WINNT _WIN32_WINNT_WIN7
 
 #include "settings.h"
@@ -15,10 +18,13 @@ class MainWindow : public QMainWindow
     Q_OBJECT
 
     Ui::MainWindow *ui;
+    QMainWindow *splash=nullptr;
     Settings *settings=nullptr;
     QDialog *about=nullptr;
-    QString renameModName;
-    QTableWidgetItem *renameModItem;
+    QTableWidgetItem *renameModItem=nullptr;
+    QString tmpModName;
+    bool shortcutMode;
+    bool shortcutEditor;
 
     void setLaunchIcons();
     void getAllowFiles();
@@ -26,6 +32,7 @@ class MainWindow : public QMainWindow
     void getMount(bool=false);
     bool modSelected();
     void status(QString, bool=false);
+    void shortcutMountMod();
 
     QString result2statusMsg(QString, QString, int, int, int, bool=false, bool=false);
     std::string result2errorMsg(std::string, int, int, int, bool=false, bool=false);
@@ -40,9 +47,11 @@ class MainWindow : public QMainWindow
     QIcon warningIcon = QIcon();
 
 public:
-    explicit MainWindow(QWidget *parent = nullptr);
+    explicit MainWindow(bool, QMainWindow*, QWidget *parent = nullptr);
     ~MainWindow();
     Config *config = new Config();
+    void shortcutLaunch(QString, QString, bool);
+    QMainWindow* activeWindow();
 
 private slots:
     void openGameFolder();
@@ -50,12 +59,12 @@ private slots:
     void openSettings();
     void openAbout();
     void refresh(QString="", QString="", bool=true);
-    void scanModUpdate(int, QString, QString);
+    void scanModUpdate(QString, QString, int);
     void launchGame();
     void launchEditor();
-    void setAllowFiles();
-    void setGameVersion();
-    void mountMod();
+    void setAllowFiles(QString="");
+    void setGameVersion(QString="");
+    void mountMod(QString="", QString="");
     void mountModReady(QString, int, int, int, bool=false);
     void unmountMod();
     void unmountModReady(QString, int, int, int, bool=false, bool=false);
@@ -67,6 +76,9 @@ private slots:
     void renameModSave(QTableWidgetItem*);
     void deleteMod();
     void deleteModReady(QString, int, int, int, bool=false);
+
+signals:
+    void shortcutQuit();
 };
 
 #endif // MAINWINDOW_H

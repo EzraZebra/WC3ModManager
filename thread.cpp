@@ -2,8 +2,6 @@
 #include "utils.h"
 #include "ui_filestatus.h"
 
-#include <iostream>
-
 // FILESTATUS DIALOG
 FileStatus::FileStatus(QWidget *parent) :
     QDialog(parent),
@@ -100,11 +98,14 @@ void Worker::scanModWorker(int row)
             modSize += itMod.fileInfo().size();
             fileCount++;
 
-            emit scanModUpdate(row,
-                               QString("%0 MB").arg(round(modSize/1024/1024*100)/100),
-                               QString("%0 files").arg(fileCount));
+            emit scanModUpdate(QString("%0 MB").arg(round(modSize/1024/1024*100)/100),
+                               QString("%0 files").arg(fileCount),
+                               row);
         } while(itMod.hasNext());
-    else emit scanModUpdate(row, "0 MB", "0 files");
+    else emit scanModUpdate("0 MB", "0 files", row);
+
+    emit scanModDone(QString("%0 MB").arg(round(modSize/1024/1024*100)/100),
+                     QString("%0 files").arg(fileCount));
 }
 
 void Worker::mountModWorker()
@@ -418,7 +419,7 @@ Controller::Controller(MainWindow *mw, QString newAction, QString newMod, bool s
         connect(worker, &Worker::appendAction, this, &Controller::appendAction);
         connect(worker, &Worker::resultReady, this, &Controller::result);
 
-        fileStatus = new FileStatus(mw);
+        fileStatus = new FileStatus(mw->activeWindow());
         connect(fileStatus, SIGNAL(rejected()), this, SLOT(abort()));
         connect(fileStatus, SIGNAL(forceUnmount(bool)), worker, SLOT(unmountModWorker(bool)));
         fileStatus->setText(action+" "+mod+":");
@@ -463,7 +464,7 @@ void Controller::result(QString, int success, int failed, int missing, bool abor
 
         status(msg);
     }
-    else this->~Controller();
+    else deleteLater();
 }
 
 void Controller::abort()
@@ -474,7 +475,11 @@ void Controller::abort()
 
 Controller::~Controller()
 {
-    if(fileStatus->isVisible()) fileStatus->close();
     workerThread.quit();
     workerThread.wait();
+    if(fileStatus)
+    {
+        if(fileStatus->isVisible()) fileStatus->close();
+        if(fileStatus) delete fileStatus;
+    }
 }

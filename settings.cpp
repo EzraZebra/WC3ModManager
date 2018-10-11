@@ -43,7 +43,7 @@ void Settings::browseGame()
 {
     QString folder = ui->dirEdit->text();
 
-    folder = QFileDialog::getExistingDirectory(this, tr("Warcraft III Folder"), folder,
+    folder = QFileDialog::getExistingDirectory(this, "Warcraft III Folder", folder,
                                                  QFileDialog::ShowDirsOnly | QFileDialog::HideNameFilterDetails);
 
     if(folder != "") ui->dirEdit->setText(QDir::toNativeSeparators(folder));
