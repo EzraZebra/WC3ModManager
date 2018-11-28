@@ -1,99 +1,92 @@
 #include "config.h"
-#include "utils.h"
-#include <QCoreApplication>
 #include <QDir>
+#include <fstream>
+#include <winerror.h>
+
+const QChar   Config::CFG_SEP       = '=';
+const QString Config::vOn           = "1",
+              Config::vOff          = "0",
+              Config::kGamePath     = "GamePath",
+              Config::kHideEmpty    = "HideEmptyMods",
+              Config::kMounted      = "Mounted",
+              Config::kMountedSize  = "MountedMB",
+              Config::kMountedFiles = "MountedFiles",
+              Config::kMountedError = "MountedError";
 
 Config::Config()
 {
-    //Set Paths
-    std::string exePath = QCoreApplication::applicationDirPath().toStdString();
-    cfgPath = exePath+"/config.cfg";
-    modPath = exePath+"/mods";
-    outFilesPath = exePath+"/out_files.txt";
-    backupFilesPath = exePath+"/backup_files.txt";
-
-    //Load config file
-    utils::TxtReader txtReader(cfgPath);
-    while(txtReader.next())
+ // LOAD CONFIG FILE
+    std::ifstream cfgReader(pathCfg);
+    for(std::string line; std::getline(cfgReader, line); )
     {
-        std::pair<std::string, std::string> setting = line2setting(txtReader.line);
-        setSetting(setting.first, setting.second);
+        const QStringList &list = QString::fromStdString(line).split(CFG_SEP);
+        if(list.size() >= 2) saveSetting(list[0], list[1]);
     }
+    cfgReader.close();
 
-    //Load defaults
+ // LOAD DEFAULTS
     bool configChanged = false;
 
-    if(getSetting("GamePath") == "")
+    if(getSetting(kGamePath).isEmpty())
     {
-        std::string gamePath = "";
-        for(int i=0; gamePath == ""; i++)
-            switch(i)
-            {
-                case(0): gamePath = utils::regGet(L"GamePath", REG_SZ);
-                         break;
-                case(1): gamePath = utils::regGet(L"InstallPath", REG_SZ);
-                         break;
-                case(2): gamePath = utils::regGetPF86();
-                         if(gamePath != "") gamePath += "/Warcraft III";
-                         break;
-                default: gamePath = "C:/Program Files (x86)/Warcraft III";
-            }
+        HKEY hKey;
+        if(regOpenWC3(KEY_READ, hKey))
+        {
+            QString gamePath;
+            DWORD type = REG_SZ, size = 1024;
+            wchar_t result[MAX_PATH];
 
-        setSetting("GamePath", gamePath);
-        configChanged = true;
+            if(RegQueryValueEx(hKey, L"GamePath", nullptr, &type, LPBYTE(&result), &size)
+                    == ERROR_SUCCESS)
+                gamePath = QString::fromWCharArray(result);
+
+            if(gamePath.isEmpty()  && RegQueryValueEx(hKey, L"InstallPath", nullptr, &type, LPBYTE(&result), &size)
+                    == ERROR_SUCCESS)
+                gamePath = QString::fromWCharArray(result);
+
+            if(!gamePath.isEmpty())
+            {
+                saveSetting(kGamePath, gamePath);
+                configChanged = true;
+            }
+        }
+        RegCloseKey(hKey);
     }
-    if(getSetting("hideEmptyMods") == "")
+    if(getSetting(kHideEmpty).isEmpty())
     {
-        setSetting("hideEmptyMods", "1");
+        saveSetting(kHideEmpty, vOn);
         configChanged = true;
     }
 
     if(configChanged) saveConfig();
 }
 
-void Config::setSetting(std::string key, std::string value)
+void Config::saveSetting(const QString &key, QString value)
 {
-    if(key != "")
+    if(!key.isEmpty())
     {
-        if(value == "") deleteSetting(key);
+        if(value.isEmpty()) deleteSetting(key);
         else
         {
-            if(key == "GamePath") replace(value.begin(), value.end(), '\\', '/');
+            if(key == kGamePath) value = QDir::fromNativeSeparators(value);
             if(settings.find(key) == settings.end()) settings.insert({ key, value });
-            else settings.find(key)->second = value;
+            else settings[key] = value;
         }
-     }
+    }
 }
 
-void Config::deleteSetting(std::string key)
+void Config::saveConfig() const
 {
-    if(settings.find(key) != settings.end())
-        settings.erase(key);
+    std::ofstream cfgWriter(pathCfg);
+
+    for(const std::pair<const QString, const QString> &setting : settings)
+        cfgWriter << QString("%0%1%2").arg(setting.first, CFG_SEP, setting.second).toStdString() << std::endl;
+
+    cfgWriter.close();
 }
 
-std::string Config::getSetting(std::string key)
+bool Config::regOpenWC3(const REGSAM &accessMode, HKEY &hKey)
 {
-    if(settings.find(key) == settings.end())
-        return "";
-    else return settings.find(key)->second;
-}
-
-std::pair<std::string, std::string> Config::line2setting(std::string line)
-{
-    size_t pos = line.find_first_of('=');
-
-    std::string field = line.substr(0, pos),
-                value = line.substr(pos+1);
-
-    return { field, value };
-}
-
-void Config::saveConfig()
-{
-    std::ofstream cfg(cfgPath.c_str());
-
-    for(std::map<std::string, std::string>::const_iterator it = settings.begin(); it != settings.end(); ++it)
-        cfg << it->first+"="+it->second << std::endl;
-
-    cfg.close();
+    return RegOpenKeyEx(HKEY_CURRENT_USER, L"Software\\Blizzard Entertainment\\Warcraft III", 0, accessMode, &hKey)
+                == ERROR_SUCCESS;
 }

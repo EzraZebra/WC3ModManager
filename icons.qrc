@@ -1,12 +1,18 @@
 <RCC>
     <qresource prefix="/">
         <file>icons/icon.ico</file>
-        <file>icons/war3.png</file>
-        <file>icons/war3_mod.png</file>
-        <file>icons/war3x.png</file>
-        <file>icons/war3x_mod.png</file>
-        <file>icons/worldedit.png</file>
-        <file>icons/worldedit_mod.png</file>
         <file>icons/warning.png</file>
+        <file>icons/info.png</file>
+        <file>icons/war3_mod.ico</file>
+        <file>icons/war3x_mod.ico</file>
+        <file>icons/worldedit_mod.ico</file>
+        <file>icons/war3.ico</file>
+        <file>icons/war3x.ico</file>
+        <file>icons/worldedit.ico</file>
+        <file>icons/war3z.ico</file>
+        <file>icons/hive.ico</file>
+        <file>icons/war2.ico</file>
+        <file>icons/war3d.ico</file>
+        <file>icons/wow.ico</file>
     </qresource>
 </RCC>

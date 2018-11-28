@@ -1,485 +1,806 @@
+#define WINVER _WIN32_WINNT_WIN7 //Must be at least Vista for CreateSymbolicLink()
+#ifdef _WIN32_WINNT
+    #undef _WIN32_WINNT
+#endif
+#define _WIN32_WINNT _WIN32_WINNT_WIN7
+
+#include "_dic.h"
+#include "_msgr.h"
 #include "thread.h"
-#include "utils.h"
-#include "ui_filestatus.h"
+#include "thread_pvt.h"
 
-// FILESTATUS DIALOG
-FileStatus::FileStatus(QWidget *parent) :
-    QDialog(parent),
-    ui(new Ui::FileStatus)
-{
-    ui->setupUi(this);
-    setWindowFlag(Qt::WindowCloseButtonHint, false);
-    ui->okBtn->hide();
-    ui->forceBtn->hide();
+#include <QVBoxLayout>
+#include <QLabel>
+#include <QDialogButtonBox>
+#include <QPlainTextEdit>
+#include <QPushButton>
+#include <QMessageBox>
+#include <QDirIterator>
+#include <QProcess>
+#include <QApplication>
+#include <QStringList>
+#include <QWaitCondition>
+#include <QMutex>
 
-    connect(ui->abortBtn, SIGNAL(clicked()), this, SLOT(abort()));
-}
+#include <windef.h>  // winbase.h needs to be
+#include <winbase.h> // preceded by windef.h
+#include <cmath>
 
-void FileStatus::setText(QString msg)
-{
-    ui->msgLbl->setText(msg);
-}
+#include <QDebug>
 
-void FileStatus::setInfoText(QString msg)
-{
-    ui->infoLbl->setText(msg);
-}
+/********************************************************************/
+/*      THREADACTION        *****************************************/
+/********************************************************************/
+    ThreadAction::ThreadAction(const Action &action, const QString &modName)
+        : PROCESSING(action == Mount     ? d::MOUNTING
+                     : action == Unmount ? d::UNMOUNTING
+                     : action == Add     ? d::ADDING
+                     : action == Delete  ? d::DELETING
+                                         : d::PROCESSING),
 
-void FileStatus::addErrorText(QString msg)
-{
-    if(ui->detailsTxt->height() == 0)
+          modName(modName), action(action) {}
+
+/********************************************************************/
+/*      FILESTATUS DIALOG       *************************************/
+/********************************************************************/
+    ProgressDiag::ProgressDiag(QWidget *parent, const QString &status, QWaitCondition *confirmWait)
+        : QDialog(parent, Qt::MSWindowsFixedSizeDialogHint),
+          confirmWait(confirmWait), status(status)
     {
-        setMinimumHeight(minimumHeight()+90);
-        ui->detailsTxt->setMinimumHeight(90);
-        ui->detailsTxt->setMaximumHeight(QWIDGETSIZE_MAX);
+        setWindowTitle(status);
+        setWindowFlag(Qt::WindowCloseButtonHint, false);
+        setFixedSize(400, 90);
+
+        QVBoxLayout *layout = new QVBoxLayout;
+        setLayout(layout);
+        layout->setContentsMargins(9, 9, 9, 12);
+
+            statusLbl = new QLabel;
+            infoLbl   = new QLabel;
+            layout->addWidget(statusLbl);
+            layout->addWidget(infoLbl);
+            statusLbl->setFixedHeight(13);
+            infoLbl->setFixedHeight(13);
+            statusLbl->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
+            infoLbl->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
+
+            statusLbl->setText(status+":");
+
+            buttonBox = new QDialogButtonBox(QDialogButtonBox::Abort);
+            layout->addWidget(buttonBox);
+
+        connect(buttonBox, &QDialogButtonBox::rejected, this, &ProgressDiag::reject);
     }
-    ui->detailsTxt->moveCursor(QTextCursor::End);
-    ui->detailsTxt->insertPlainText(msg+"\n");
-}
 
-void FileStatus::result(bool enableForce)
-{
-    setWindowFlag(Qt::WindowCloseButtonHint);
-
-    disconnect(ui->abortBtn, SIGNAL(clicked()), this, SLOT(abort()));
-    ui->abortBtn->hide();
-
-    connect(ui->okBtn, SIGNAL(clicked()), this, SLOT(accept()));
-    ui->okBtn->show();
-
-    if(enableForce)
+    void ProgressDiag::showProgress(const QString &msg, const bool error)
     {
-        connect(ui->forceBtn, SIGNAL(clicked()), this, SLOT(forceUnmountClicked()));
-        ui->forceBtn->show();
-    }
-    else
-    {
-        disconnect(ui->forceBtn, SIGNAL(clicked()), this, SLOT(forceUnmountClicked()));
-        ui->forceBtn->hide();
-    }
-
-    ui->detailsTxt->insertPlainText("-----------------\n\n");
-}
-
-void FileStatus::abort()
-{
-    emit rejected();
-}
-
-void FileStatus::forceUnmountClicked()
-{
-    if(QMessageBox::warning(this, "Force unmount?", "Are you sure you want to remove all record of mounted files and backups?",
-                            QMessageBox::Yes|QMessageBox::No) == QMessageBox::Yes)
-        emit forceUnmount(true);
-}
-
-FileStatus::~FileStatus()
-{
-    delete ui;
-}
-
-// THREAD WORKER
-Worker::Worker(Config *newConfig, QString newMod)
-{
-    config = newConfig;
-    mod = newMod;
-}
-
-void Worker::scanModWorker(int row)
-{
-    double modSize = 0;
-    int fileCount = 0;
-
-    QDirIterator itMod(QString::fromStdString(config->modPath)+"/"+mod, QDir::NoDotAndDotDot|QDir::Files, QDirIterator::Subdirectories);
-    if(itMod.hasNext())
-        do
+        if(error)
         {
-            itMod.next();
-            modSize += itMod.fileInfo().size();
-            fileCount++;
-
-            emit scanModUpdate(QString("%0 MB").arg(round(modSize/1024/1024*100)/100),
-                               QString("%0 files").arg(fileCount),
-                               row);
-        } while(itMod.hasNext());
-    else emit scanModUpdate("0 MB", "0 files", row);
-
-    emit scanModDone(QString("%0 MB").arg(round(modSize/1024/1024*100)/100),
-                     QString("%0 files").arg(fileCount));
-}
-
-void Worker::mountModWorker()
-{
-    std::array<int, 3> result = mountModIterator(QString::fromStdString(config->modPath)+"/"+mod,
-                                                 QString::fromStdString(config->getSetting("GamePath")));
-
-    if(out_files.is_open()) out_files.close();
-    if(backup_files.is_open()) backup_files.close();
-
-    emit resultReady(mod, result[PROCFILE_SUCCESS], result[PROCFILE_FAILED],
-                          result[PROCFILE_MISSING], abort);
-}
-
-std::array<int, 3> Worker::mountModIterator(QString dir, QString rootDst)
-{
-    std::array<int, 3> result{ 0, 0, 0 };
-
-    QDirIterator itDir(dir, QDir::NoDotAndDotDot|QDir::AllEntries);
-    if(!abort && itDir.hasNext())
-    {
-        QString rootSrc = QString::fromStdString(config->modPath)+"/"+mod;
-
-        do
-        {
-            itDir.next();
-            QString src = itDir.filePath(),
-                    relativePath = src;
-            relativePath.remove(rootSrc+"/");
-            QString dst = rootDst+"/"+relativePath;
-            QFileInfo fiDst = QFileInfo(dst);
-
-            emit status(relativePath);
-
-            if(!fiDst.isSymLink() && fiDst.exists() && fiDst.isDir())
+            if(!errorTxt)
             {
-                std::array<int, 3> resultIt = mountModIterator(src, rootDst);
-                result[PROCFILE_SUCCESS] += resultIt[PROCFILE_SUCCESS];
-                result[PROCFILE_FAILED] += resultIt[PROCFILE_FAILED];
-                result[PROCFILE_MISSING] += resultIt[PROCFILE_MISSING];
+                setWindowFlag(Qt::MSWindowsFixedSizeDialogHint, false);
+                setMinimumHeight(180);
+                setMaximumSize(QWIDGETSIZE_MAX, QWIDGETSIZE_MAX);
+                setSizeGripEnabled(true);
+                errorTxt = new QPlainTextEdit;
+                layout()->addWidget(errorTxt);
+                //errorTxt->setMinimumSize(380, 90);
+                errorTxt->setAcceptDrops(false);
+                errorTxt->setInputMethodHints(Qt::ImhNone);
+                errorTxt->setUndoRedoEnabled(false);
+                errorTxt->setLineWrapMode(QPlainTextEdit::NoWrap);
+                errorTxt->setReadOnly(true);
+                errorTxt->setTextInteractionFlags(Qt::TextSelectableByMouse);
+
+                adjustSize();
             }
+            errorTxt->moveCursor(QTextCursor::End);
+            errorTxt->insertPlainText(QDir::toNativeSeparators(msg)+"\n");
+        }
+        else infoLbl->setText(QDir::toNativeSeparators(msg));
+
+        if(!isVisible()) show();
+    }
+
+    void ProgressDiag::showResult(const bool enableForce)
+    {
+        setWindowFlag(Qt::WindowCloseButtonHint);
+
+        disconnect(buttonBox, &QDialogButtonBox::rejected, this, &ProgressDiag::reject);
+        connect(buttonBox, &QDialogButtonBox::accepted, this, &ProgressDiag::accept);
+        buttonBox->setStandardButtons(QDialogButtonBox::Ok);
+
+        if(forceBtn) disconnect(forceBtn, &QPushButton::clicked, this, &ProgressDiag::forceUnmount);
+        if(enableForce)
+        {
+            if(!forceBtn) forceBtn = new QPushButton(d::FORCE_X.arg(d::UNMOUNT));
+            buttonBox->addButton(forceBtn, QDialogButtonBox::ActionRole);
+            connect(forceBtn, &QPushButton::clicked, this, &ProgressDiag::forceUnmount);
+        }
+        else if(forceBtn)
+        {
+            buttonBox->removeButton(forceBtn);
+            delete forceBtn;
+            forceBtn = nullptr;
+        }
+
+        if(errorTxt)
+        {
+            errorTxt->moveCursor(QTextCursor::End);
+            errorTxt->insertPlainText("-----------------\n\n");
+        }
+    }
+
+    void ProgressDiag::appendStatus(const QString &msg)
+    {
+        statusLbl->setText(QStringLiteral(u"%0: %1").arg(status, msg));
+    }
+
+    void ProgressDiag::reject()
+    {
+        if(doAbort)
+        {
+            emit interrupted();
+            if(QMessageBox::warning(this, d::ABORT+"?", d::ARE_YOU_SURE_Xq.arg(d::ABORT),
+                                    QMessageBox::Yes|QMessageBox::No) == QMessageBox::Yes)
+            {
+                emit aborted(); // calls confirmWait->wakeAll()
+            } else confirmWait->wakeAll();
+        }
+        else QDialog::reject();
+    }
+
+    void ProgressDiag::forceUnmount()
+    {
+        if(QMessageBox::warning(this, d::FORCE_X.arg(d::lUNMOUNT)+"?", d::ARE_YOU_SURE_Xq.arg(d::FORCE_X).arg(d::lUNMOUNT),
+                                QMessageBox::Yes|QMessageBox::No) == QMessageBox::Yes)
+            emit unmountForced();
+    }
+
+/********************************************************************/
+/*      THREAD WORKER       *****************************************/
+/********************************************************************/
+    const QString ThreadWorker::extBackup = QStringLiteral(u".wmmbackup");
+
+    void ThreadWorker::init(const int index, const QString &path1, const QString &path2,
+                            const QString &args, const mod_m &modData)
+    {
+
+        switch(action.action)
+        {
+        case ThreadAction::ModData:     modDataWorker(modData);
+            break;
+        case ThreadAction::Scan:        scanModWorker();
+            break;
+        case ThreadAction::ScanMounted: scanMountedModWorker();
+            break;
+        case ThreadAction::Mount:       mountModWorker();
+            break;
+        case ThreadAction::Unmount:     unmountModWorker();
+            break;
+        case ThreadAction::Add:         addModWorker(path1, path2, Mode(index)); //src , dst, mode
+            break;
+        case ThreadAction::Delete:      deleteModWorker();
+            break;
+        case ThreadAction::Shortcut:    shortcutWorker(path1, args, path2, index); //dst, args, icon path, icon index
+            break;
+        case ThreadAction::NoAction:;
+        }
+    }
+
+    void ThreadWorker::forceUnmount()
+    {
+        if(action == ThreadAction::Unmount)
+        {
+            action.force();
+            unmountModWorker();
+        }
+    }
+
+    QString ThreadWorker::B2MB(double size)
+    {
+        QString result = "0.00";
+        if(size > 0)
+        {
+            size = size/1024/1024;
+            if(size < 0.01) result = "< 0.01";
             else
             {
-                std::pair<int, std::string> resultIt = moveFile(src, dst, PROCFILE_LINK);
-
-                result[unsigned(resultIt.first)]++;
-
-                if(resultIt.first == PROCFILE_SUCCESS)
-                {
-                    if(!out_files.is_open()) out_files.open(config->outFilesPath.c_str());
-                    out_files << dst.toStdString() << std::endl;
-                }
-
-                if(resultIt.second != "")
-                {
-                    if(!backup_files.is_open()) backup_files.open(config->backupFilesPath.c_str());
-                    backup_files << resultIt.second << std::endl;
-                }
-            }
-        } while(!abort && itDir.hasNext());
-    }
-
-    return result;
-}
-
-void Worker::unmountModWorker(bool force)
-{
-    std::array<int, 3> result{ 0, 0, 0 };
-    utils::TxtReader* txtReader = new utils::TxtReader(config->outFilesPath);
-
-    if(!abort && txtReader->next())
-    {
-        std::string newOutFiles = "";
-        do
-        {
-            if(txtReader->line != "")
-            {
-                QString qsLine = QString::fromStdString(txtReader->line);
-                QFileInfo fiLine(qsLine);
-                emit status(qsLine);
-
-                int resultIt = PROCFILE_FAILED;
-                if(fiLine.isSymLink()) resultIt = deleteFile(qsLine);
-                else if(!fiLine.exists())
-                {
-                    resultIt = PROCFILE_MISSING;
-                    emit status("Missing file: "+qsLine, true);
-                }
-                else emit status("Not a symbolic link: "+qsLine, true);
-
-                result[unsigned(resultIt)]++;
-                if(!force && resultIt != PROCFILE_SUCCESS)
-                    newOutFiles += txtReader->line+"\n";
-            }
-        } while(!abort && txtReader->next());
-
-        std::ofstream out_files(config->outFilesPath.c_str());
-        out_files << newOutFiles;
-        out_files.close();
-    }
-
-    txtReader = new utils::TxtReader(config->backupFilesPath);
-    if(!abort && txtReader->next())
-    {
-        emit appendAction("restoring backups...");
-
-        std::string newBackupFiles = "";
-        do
-        {
-            if(txtReader->line != "")
-            {
-                QString qsLine = QString::fromStdString(txtReader->line),
-                        dst = qsLine;
-                dst.truncate(qsLine.lastIndexOf(PROCFILE_BACKUP_EXT));
-
-                emit status(QFileInfo(qsLine).fileName());
-
-                int resultIt = moveFile(qsLine, dst).first;
-
-                result[unsigned(resultIt)]++;
-                if(!force && resultIt != PROCFILE_SUCCESS)
-                    newBackupFiles += txtReader->line+"\n";
-            }
-        } while(!abort && txtReader->next());
-
-        std::ofstream backup_files(config->backupFilesPath.c_str());
-        backup_files << newBackupFiles;
-        backup_files.close();
-
-        emit appendAction("");
-    }
-
-    emit resultReady(mod, result[PROCFILE_SUCCESS], result[PROCFILE_FAILED], result[PROCFILE_MISSING], abort, force);
-}
-
-void Worker::moveFolderWorker(QString src, QString dst, int mode)
-{
-    std::array<int, 3> result{ 0, 0, 0 };
-
-    QDirIterator itSrc(src, QDir::NoDotAndDotDot|QDir::Files, QDirIterator::Subdirectories);
-    while(!abort && itSrc.hasNext())
-    {
-        itSrc.next();
-        QString relativePath = itSrc.filePath().remove(src+"/"),
-                itDstPath = dst+"/"+relativePath;
-
-        emit status(relativePath);
-
-        std::pair<int, std::string> resultIt = moveFile(itSrc.filePath(), itDstPath, mode);
-
-        result[unsigned(resultIt.first)]++;
-    }
-
-    emit resultReady(mod, result[PROCFILE_SUCCESS], result[PROCFILE_FAILED], result[PROCFILE_MISSING], abort);
-}
-
-std::pair<int, std::string> Worker::moveFile(QString src, QString dst, int mode)
-{
-    std::string backupPath = "";
-    int result = PROCFILE_FAILED;
-    QFileInfo fiSrc(src);
-
-    if(fiSrc.isSymLink() || fiSrc.isFile() || (mode == PROCFILE_LINK && fiSrc.isDir()))
-    {
-        QFileInfo fiDst(dst);
-        //if dst exists, make backup
-        if(fiDst.isSymLink() || fiDst.exists())
-        {
-            QString qsBackupPath = dst+PROCFILE_BACKUP_EXT;
-            QString newBackupPath = qsBackupPath;
-            QFileInfo fiBackup(qsBackupPath);
-            for(int i=2; fiBackup.exists(); i++)
-            {
-                newBackupPath = qsBackupPath+QString::number(i);
-                fiBackup.setFile(newBackupPath);
-            }
-
-            if(QFile::rename(dst, newBackupPath)) backupPath = newBackupPath.toStdString();
-            else
-            {
-                emit status("Failed to create backup of "+dst+"\n-->Skipping file: "+src, true);
-                return { PROCFILE_FAILED, "" };
+                result = QString::number(round(size*100)/100);
+                if(result.lastIndexOf('.') == result.length()-2)
+                    result += "0";
+                else if(result.lastIndexOf('.') == -1)
+                    result += ".00";
             }
         }
-        else QDir().mkpath(fiDst.absolutePath());
 
-        switch(mode)
+        result = d::X_MB.arg(result);
+
+        return result;
+    }
+
+    qint64 ThreadWorker::getSize(const QFileInfo &fi)
+    {
+        qint64 size = 0;
+        if(fi.isSymLink() && fi.size() == QFileInfo(fi.symLinkTarget()).size())
         {
-            case PROCFILE_MOVE:
+            QFile file(fi.filePath());
+            if(file.exists() && file.open(QIODevice::ReadOnly))
+                size = file.size();
+            file.close();
+        }
+
+        return size == 0 ? fi.size() : size;
+    }
+
+    ThreadAction::Result ThreadWorker::processFile(const QString &src, const QString &dst, const Mode &mode, const bool logBackups)
+    {
+        ThreadAction::Result result = ThreadAction::Failed;
+        const QFileInfo &fiSrc(src);
+
+        if(fiSrc.isSymLink() || (fiSrc.exists() && (fiSrc.isFile() || (mode == Link && fiSrc.isDir()))))
+        {
+            QFileInfo fiDst(dst);
+            //if dst exists, make backup
+            if(fiDst.isSymLink() || fiDst.exists())
+            {
+                QString backupPath = dst+extBackup;
+                for(int i=2; QFileInfo().exists(backupPath); ++i)
+                    backupPath = dst+extBackup+QString::number(i);
+
+                if(QFile::rename(dst, backupPath))
+                {
+                    if(logBackups)
+                    {
+                        if(!backupFilesIt.is_open()) backupFilesIt.open(pathBackupFiles);
+                        backupFilesIt << backupPath.toStdString() << std::endl;
+                    }
+                }
+                else
+                {
+                    emit progressUpdate(d::FAILED_TO_CREATE_BACKUP_X.arg(dst)+"\n"+d::SKIPPING_FILE_X.arg(src), true);
+                    return ThreadAction::Failed;
+                }
+            }
+            else QDir().mkpath(fiDst.absolutePath());
+
+            switch(mode)
+            {
+            case Copy:
+                if(QFile::copy(src, dst)) result = ThreadAction::Success;
+                break;
+            case Link:
+                if(CreateSymbolicLink(QDir::toNativeSeparators(dst).toStdWString().c_str(),
+                                      QDir::toNativeSeparators(src).toStdWString().c_str(),
+                                      fiSrc.isDir() ? SYMBOLIC_LINK_FLAG_DIRECTORY : 0x0))
+                    result = ThreadAction::Success;
+                break;
+            default:
                 if(QFile::rename(src, dst))
                 {
-                    result = PROCFILE_SUCCESS;
+                    result = ThreadAction::Success;
                     removePath(fiSrc.absolutePath());
                 }
-                break;
-
-            case PROCFILE_COPY:
-                if(QFile::copy(src, dst)) result = PROCFILE_SUCCESS;
-                break;
-
-            case PROCFILE_LINK:
-                if(CreateSymbolicLinkA(QDir::toNativeSeparators(dst).toStdString().c_str(),
-                                       QDir::toNativeSeparators(src).toStdString().c_str(),
-                                       QFileInfo(src).isDir() ? SYMBOLIC_LINK_FLAG_DIRECTORY : 0x0))
-                    result = PROCFILE_SUCCESS;
+            }
         }
-    }
-    else if(src != "" && !fiSrc.exists())
-    {
-        result = PROCFILE_MISSING;
-        emit status("Missing file: "+src, true);
-    }
-
-    if(result == PROCFILE_FAILED)
-    {
-        QString modeStr = "process";
-        switch(mode)
+        else if(!src.isEmpty() && !fiSrc.isSymLink() && !fiSrc.exists())
         {
-            case PROCFILE_MOVE: modeStr = "move";
-                break;
-            case PROCFILE_COPY: modeStr = "copy";
-                break;
-            case PROCFILE_LINK: modeStr = "create symbolic link to";
+            result = ThreadAction::Missing;
+            emit progressUpdate(d::MISSING_FILE_X.arg(src), true);
         }
-        emit status("Failed to "+modeStr+" file: "+src, true);
+
+        if(result == ThreadAction::Failed)
+            emit progressUpdate(d::FAILED_TO_X.arg((mode == Copy ? d::lCOPY : mode == Link ? d::lCREATE_SYMLINK_TO : d::lMOVE)
+                                                   +" "+d::lFILEc_X.arg(src)), true);
+
+        return result;
     }
 
-    return { result, backupPath };
-}
-
-void Worker::deleteModWorker()
-{
-    std::array<int, 3> result{ 0, 0, 0 };
-    QString deleteModPath = QString::fromStdString(config->modPath)+"/"+mod;
-
-    QDirIterator itMod(deleteModPath, QDir::NoDotAndDotDot|QDir::AllEntries, QDirIterator::Subdirectories);
-    while(!abort && itMod.hasNext())
+    ThreadAction::Result ThreadWorker::deleteFile(const QString &path, const QString &stopPath)
     {
-        itMod.next();
-        QString filePath = itMod.filePath();
-
-        emit status(filePath);
-
-        if(!itMod.fileInfo().isSymLink() && itMod.fileInfo().isDir()) removePath(filePath, QString::fromStdString(config->modPath));
-        else result[unsigned(deleteFile(filePath))]++;
-    }
-
-    QDir().rmdir(deleteModPath);
-
-    emit resultReady(mod, result[PROCFILE_SUCCESS], result[PROCFILE_FAILED], result[PROCFILE_MISSING], abort);
-}
-
-int Worker::deleteFile(QString filePath)
-{
-    QFileInfo fiFilePath(filePath);
-    if(!fiFilePath.isSymLink() && !fiFilePath.exists())
-    {
-        emit status("Missing file: "+filePath, true);
-        return PROCFILE_MISSING;
-    }
-    else if(   (fiFilePath.isFile() && QFile(filePath).remove())
-            || (fiFilePath.isSymLink() && fiFilePath.isDir() && QDir().rmdir(filePath)))
-    {
-        removePath(fiFilePath.absolutePath(), QString::fromStdString(config->modPath));
-        return PROCFILE_SUCCESS;
-    }
-    else
-    {
-        emit status("Failed to delete file: "+filePath, true);
-        return PROCFILE_FAILED;
-    }
-}
-
-void Worker::removePath(QString path, QString stopPath)
-{
-    QDir dirEmpty(path);
-    dirEmpty.setFilter(QDir::NoDotAndDotDot|QDir::AllEntries);
-
-    while(dirEmpty.count() == 0) {
-        QString delPath = dirEmpty.absolutePath();
-        dirEmpty.cdUp();
-
-        if(   delPath != stopPath
-           && delPath.toStdString() != config->modPath
-           && delPath.toStdString() != config->getSetting("GamePath")
-           && (stopPath != "" || dirEmpty.absolutePath().toStdString() != config->modPath))
+        const QFileInfo &fileInfo(path);
+        if(!fileInfo.isSymLink() && !fileInfo.exists())
         {
-            if(!QDir().rmdir(delPath)) emit status("Failed to delete empty folder: "+delPath, true);
+            emit progressUpdate(d::MISSING_FILE_X.arg(path), true);
+            return ThreadAction::Missing;
         }
-        else break;
-    }
-}
-
-Controller::Controller(MainWindow *mw, QString newAction, QString newMod, bool showStatus)
-{
-    action = newAction;
-    mod = newMod;
-
-    worker = new Worker(mw->config, mod);
-    worker->moveToThread(&workerThread);
-    connect(&workerThread, &QThread::finished, worker, &QObject::deleteLater);
-    connect(this, &Controller::scanMod, worker, &Worker::scanModWorker);
-    connect(this, &Controller::mountMod, worker, &Worker::mountModWorker);
-    connect(this, &Controller::unmountMod, worker, &Worker::unmountModWorker);
-    connect(this, &Controller::deleteMod, worker, &Worker::deleteModWorker);
-    connect(this, &Controller::moveFolder, worker, &Worker::moveFolderWorker);
-
-    if(showStatus)
-    {
-        connect(worker, &Worker::status, this, &Controller::status);
-        connect(worker, &Worker::appendAction, this, &Controller::appendAction);
-        connect(worker, &Worker::resultReady, this, &Controller::result);
-
-        fileStatus = new FileStatus(mw->activeWindow());
-        connect(fileStatus, SIGNAL(rejected()), this, SLOT(abort()));
-        connect(fileStatus, SIGNAL(forceUnmount(bool)), worker, SLOT(unmountModWorker(bool)));
-        fileStatus->setText(action+" "+mod+":");
-        fileStatus->setWindowTitle(action+" "+mod+"...");
-    }
-
-    workerThread.start();
-}
-
-void Controller::status(QString msg, bool error)
-{
-    if(error) fileStatus->addErrorText(msg);
-    else fileStatus->setInfoText(msg);
-
-    if(!fileStatus->isVisible()) fileStatus->show();
-}
-
-void Controller::appendAction(QString msg)
-{
-    fileStatus->setText(action+" "+mod+": "+msg);
-}
-
-void Controller::result(QString, int success, int failed, int missing, bool abort, bool force)
-{
-    disconnect(fileStatus, SIGNAL(rejected()), this, SLOT(abort()));
-
-    int totErrors = failed+missing;
-    if(abort || totErrors > 0)
-    {
-        fileStatus->result(!force && !abort && action == "Unmounting" && success == 0 && totErrors > 0);
-        if(!abort)
+        else if((fileInfo.isFile() && QFile(path).remove())
+                || (fileInfo.isSymLink() && fileInfo.isDir() && QDir().rmdir(path)))
         {
-            if(!force && totErrors > 0 && (action == "Unmounting" || success <= 0))
-                appendAction("failed.");
-            else appendAction("done.");
+            removePath(fileInfo.absolutePath(), stopPath);
+            return ThreadAction::Success;
+        }
+        else
+        {
+            emit progressUpdate(d::FAILED_TO_X.arg(d::lDELETE_X).arg(d::lFILEc_X).arg(path), true);
+            return ThreadAction::Failed;
+        }
+    }
+
+    void ThreadWorker::removePath(const QString &path, const QString &stopPath)
+    {
+        QDir dirEmpty(path);
+        dirEmpty.setFilter(QDir::NoDotAndDotDot|QDir::AllEntries|QDir::Hidden|QDir::System);
+
+        while(dirEmpty.count() == 0) {
+            const QString &delPath = dirEmpty.absolutePath();
+            dirEmpty.cdUp();
+
+            if(   delPath != stopPath
+               && delPath != pathMods
+               && delPath != pathGame
+               && (!stopPath.isEmpty() || dirEmpty.absolutePath() != pathMods))
+            {
+                if(!QDir().rmdir(delPath))
+                    emit progressUpdate(d::FAILED_TO_DELETE_EMPTY_FOLDERc_X_.arg(delPath), true);
+            }
+            else break;
+        }
+    }
+
+    void ThreadWorker::modDataWorker(const mod_m &modData)
+    {
+        mod_m newData;
+        QStringList modNames;
+
+        int i=0;
+        for(QDirIterator itMods(pathMods, QDir::NoDotAndDotDot|QDir::Dirs|QDir::NoSymLinks);
+            itMods.hasNext(); ++i)
+        {
+            itMods.next();
+            const QString &modName = itMods.fileName();
+
+            modNames << modName;
+
+            mod_t mod = modData.find(modName) != modData.end() ? modData.at(modName) : mod_t{};
+            std::get<int(ModData::Row)>(mod) = i;
+            newData.insert({ modName, mod });
         }
 
-        QString msg = QString("%0 files succeeded").arg(success);
-        if(failed > 0) msg += QString(", %0 files failed").arg(failed);
-        if(missing > 0) msg += QString(", %0 files missing").arg(missing);
-        msg += ".";
-
-        status(msg);
+        emit modDataReady(newData, modNames);
     }
-    else deleteLater();
-}
 
-void Controller::abort()
-{
-    worker->abort = true;
-    appendAction("aborted.");
-}
-
-Controller::~Controller()
-{
-    workerThread.quit();
-    workerThread.wait();
-    if(fileStatus)
+    void ThreadWorker::scanPathIterator(const QString &path, qint64 &modSize, int &fileCount, const bool emitUpdate)
     {
-        if(fileStatus->isVisible()) fileStatus->close();
-        if(fileStatus) delete fileStatus;
+        for(QDirIterator pathItr(path, QDir::NoDotAndDotDot|QDir::Files|QDir::Hidden|QDir::System,
+                                 QDirIterator::Subdirectories);
+            pathItr.hasNext(); )
+        {
+            pathItr.next();
+
+            modSize += getSize(pathItr.fileInfo());
+            ++fileCount;
+
+            if(emitUpdate) emit scanModUpdate(action.modName, B2MB(modSize), d::X_FILES.arg(fileCount));
+        }
     }
-}
+
+    // Scan actions are "threadsafe" because they are silent (i.e. no progressDiag/abort/pause/processResult -> no access into action)
+    void ThreadWorker::scanModWorker()
+    {
+        qint64 modSize = 0;
+        int fileCount = 0;
+
+        scanPathIterator(pathMods+"/"+action.modName, modSize, fileCount, true);
+
+        if(!fileCount) emit scanModUpdate(action.modName, d::ZERO_MB, d::ZERO_FILES);
+
+        emit scanModReady(action.modName);
+    }
+
+    void ThreadWorker::scanMountedModWorker()
+    {
+        qint64 modSize = 0;
+        int fileCount = 0;
+
+        std::ifstream txtReader(pathOutFiles);
+        for(std::string line; std::getline(txtReader, line); )
+            if(line != "")
+            {
+                const QFileInfo &fiLine(QString::fromStdString(line)); // meow
+                if(fiLine.isSymLink() && fiLine.exists())
+                {
+                    QFileInfo fiLink(fiLine.symLinkTarget());
+                    if(fiLink.isSymLink() || fiLink.exists())
+                    {
+                        if(!fiLink.isSymLink() && fiLink.isDir()) scanPathIterator(fiLink.absoluteFilePath(), modSize, fileCount, true);
+                        else
+                        {
+                            modSize += getSize(fiLink);
+                            ++fileCount;
+                            emit scanModUpdate(action.modName, B2MB(modSize), d::X_FILES.arg(fileCount));
+                        }
+                    }
+                }
+            }
+
+        emit scanModReady(action.modName);
+    }
+
+    void ThreadWorker::mountModIterator(QString relativePath)
+    {
+        qint64 modSize = 0;
+        int fileCount = 0;
+
+        for(QDirIterator itMod(pathMods+"/"+action.modName+(!relativePath.isEmpty() ? "/"+relativePath : QString()),
+                               QDir::NoDotAndDotDot|QDir::AllEntries|QDir::Hidden|QDir::System);
+            !action.aborted() && itMod.hasNext(); )
+        {
+            itMod.next();
+            const QString &src = itMod.filePath();
+            relativePath = src;
+            relativePath.remove(pathMods+"/"+action.modName+"/");
+            const QString &dst = pathGame+"/"+relativePath;
+            const QFileInfo &fiDst = QFileInfo(dst);
+
+            if(!fiDst.isSymLink() && fiDst.exists() && fiDst.isDir())
+                mountModIterator(relativePath);
+            else
+            {
+                emit progressUpdate(relativePath);
+
+                const ThreadAction::Result &resultIt = processFile(src, dst, Link, true);
+
+                if(resultIt == ThreadAction::Success)
+                {
+                    if(!outFilesIt.is_open()) outFilesIt.open(pathOutFiles);
+                    outFilesIt << dst.toStdString() << std::endl;
+
+                    int addCount = 0;
+                    if(!itMod.fileInfo().isSymLink() && itMod.fileInfo().isDir())
+                        scanPathIterator(src, modSize, addCount, true);
+                    else
+                    {
+                        addCount = 1;
+                        modSize += getSize(src);
+                    }
+
+                    fileCount += addCount;
+                    emit scanModUpdate(action.modName, B2MB(modSize), d::X_FILES.arg(fileCount));
+
+                    action.add(resultIt, addCount);
+                }
+                else
+                {
+                    action.add(resultIt);
+                }
+            }
+
+            if(mutex)
+            {
+                mutex->lock();
+                if(paused)
+                {
+                    confirmWait->wait(mutex);
+                    paused = false;
+                }
+                mutex->unlock();
+            }
+        }
+    }
+
+    void ThreadWorker::mountModWorker()
+    {
+        mountModIterator();
+
+        if(outFilesIt.is_open()) outFilesIt.close();
+        if(backupFilesIt.is_open()) backupFilesIt.close();
+
+        emit resultReady(action);
+    }
+
+    void ThreadWorker::unmountModWorker()
+    {
+        std::string newOutFiles = "";
+        std::ifstream txtReader(pathOutFiles);
+        for(std::string line; std::getline(txtReader, line); )
+        {
+            if(line != "")
+            {
+                if(!action.aborted())
+                {
+                    const QString &qsLine = QString::fromStdString(line);
+                    const QFileInfo &fiLine(qsLine);
+                    const QString &lineTrgt = fiLine.symLinkTarget();
+                    emit progressUpdate(qsLine);
+
+                    ThreadAction::Result resultIt = ThreadAction::Failed;
+                    if(fiLine.isSymLink()) resultIt = deleteFile(qsLine);
+                    else if(!fiLine.exists())
+                    {
+                        resultIt = ThreadAction::Missing;
+                        emit progressUpdate(d::MISSING_FILE_X.arg(qsLine), true);
+                    }
+                    else emit progressUpdate(d::NOT_A_SYMLINKc_X.arg(qsLine), true);
+
+                    if(resultIt == ThreadAction::Success)
+                    {
+                        int fileCount = !QFileInfo(lineTrgt).isDir();
+                        if(!fileCount)
+                        {
+                            qint64 modSize = 0;
+                            scanPathIterator(lineTrgt, modSize, fileCount);
+                        }
+
+                        action.add(resultIt, fileCount);
+                    }
+                    else
+                    {
+                        action.add(resultIt);
+                        if(!action.forced()) newOutFiles += line+"\n";
+                    }
+                }
+                else newOutFiles += line+"\n";
+                if(mutex)
+                {
+                    mutex->lock();
+                    if(paused)
+                    {
+                        confirmWait->wait(mutex);
+                        paused = false;
+                    }
+                    mutex->unlock();
+                }
+            }
+
+            //QCoreApplication::processEvents(); // Allow signals to come through
+        }
+        txtReader.close();
+
+        std::ofstream txtWriter(pathOutFiles);
+        txtWriter << newOutFiles;
+        txtWriter.close();
+
+        if(!action.aborted())
+        {
+            emit statusUpdate(d::lRESTORING_BACKUPS___);
+
+            std::string newBackupFiles = "";
+            txtReader.open(pathBackupFiles);
+            for(std::string line; std::getline(txtReader, line); )
+            {
+                if(line != "")
+                {
+                    if(!action.aborted())
+                    {
+                        const QString &qsLine = QString::fromStdString(line);
+                        QString dst = qsLine;
+                        dst.truncate(dst.lastIndexOf(extBackup));
+
+                        emit progressUpdate(QFileInfo(qsLine).fileName());
+
+                        const ThreadAction::Result &resultIt = processFile(qsLine, dst);
+
+                        action.add(resultIt);
+                        if(!action.forced() && resultIt != ThreadAction::Success) newBackupFiles += line+"\n";
+                    }
+                    else newBackupFiles += line+"\n";
+
+                    if(mutex)
+                    {
+                        mutex->lock();
+                        if(paused)
+                        {
+                            confirmWait->wait(mutex);
+                            paused = false;
+                        }
+                        mutex->unlock();
+                    }
+                }
+            }
+            txtReader.close();
+
+            txtWriter.open(pathBackupFiles);
+            txtWriter << newBackupFiles;
+            txtWriter.close();
+        }
+
+        emit statusUpdate(QString());
+        emit resultReady(action);
+    }
+
+    void ThreadWorker::addModWorker(const QString &src, const QString &dst, const Mode &mode)
+    {
+        for(QDirIterator itSrc(src, QDir::NoDotAndDotDot|QDir::AllEntries|QDir::Hidden|QDir::System, QDirIterator::Subdirectories);
+            !action.aborted() && itSrc.hasNext(); )
+        {
+            itSrc.next();
+            const QString &relativePath = itSrc.filePath().remove(src+"/");
+
+            emit progressUpdate(relativePath);
+
+            action.add(processFile(itSrc.filePath(), dst+"/"+relativePath, mode));
+
+            QCoreApplication::processEvents(); // Allow signals to come through
+        }
+
+        emit resultReady(action);
+    }
+
+    void ThreadWorker::deleteModWorker()
+    {
+        // (try to) move to temp dir so mod can't be mounted, renamed or deleted while deleting
+        QString tmpDir = pathMods+"/"+action.modName,
+                tmpDirTry = tmpDir+".wmmdelete";
+        for(int i=2; QFileInfo().exists(tmpDirTry);
+            tmpDirTry = tmpDir+".wmmdelete"+QString::number(i++))
+
+        if(QDir().rename(tmpDir, tmpDirTry)) tmpDir = tmpDirTry;
+
+        QDirIterator itMod(tmpDir, QDir::NoDotAndDotDot|QDir::AllEntries|QDir::Hidden|QDir::System,
+                           QDirIterator::Subdirectories);
+        while(!action.aborted() && itMod.hasNext())
+        {
+            itMod.next();
+            const QString &filePath = itMod.filePath();
+
+            emit progressUpdate(filePath);
+
+            if(!itMod.fileInfo().isSymLink() && itMod.fileInfo().isDir()) removePath(filePath, pathMods);
+            else action.add(deleteFile(filePath, pathMods));
+
+            QCoreApplication::processEvents(); // Allow signals to come through
+        }
+
+        if(!QFileInfo().exists(tmpDir) || QDir().rmdir(tmpDir))
+            action.add(ThreadAction::Success);
+        else
+        {
+            action.add(ThreadAction::Failed);
+            QDir().rename(tmpDir, pathMods+"/"+action.modName);
+        }
+
+        emit resultReady(action);
+    }
+
+    void ThreadWorker::shortcutWorker(const QString &dst, const QString &args, const QString &iconPath, const int iconIndex)
+    {
+        // Using QProcess because winAPI method requires ~7MB of libraries
+        QStringList cmds = {
+                QString("$s=(New-Object -COM WScript.Shell).CreateShortcut('%0.lnk');")
+                     .arg(QDir::toNativeSeparators(dst)),
+                QString("$s.TargetPath='%0';")
+                     .arg(QDir::toNativeSeparators(QCoreApplication::applicationFilePath())),
+                QString("$s.WorkingDirectory='%0';")
+                     .arg(QDir::toNativeSeparators(QCoreApplication::applicationDirPath()))
+            };
+        if(!args.isEmpty())     cmds << QString("$s.Arguments='%0';").arg(args);
+        if(!iconPath.isEmpty()) cmds << QString("$s.IconLocation='%0, %1';")
+                                        .arg(QDir::toNativeSeparators(iconPath), iconIndex);
+        cmds << QString("$s.Save()");
+
+        QProcess powershell(this);
+        powershell.start("powershell", cmds);
+        powershell.waitForFinished();
+
+        if(powershell.exitCode() == 0) emit msgr->msg(d::SHORTCUT_CREATED_, Msgr::Info);
+        else emit msgr->msg(d::FAILED_TO_CREATE_SHORTCUTc_X_.arg(powershell.errorString()), Msgr::Error);
+
+        emit shortcutReady();
+    }
+
+/********************************************************************/
+/*      THREAD CONTROLLER       *************************************/
+/********************************************************************/
+
+    Thread::Thread(const ThreadAction::Action &thrAction, const QString &modName,
+                   const QString &pathMods, const QString &pathGame, Msgr *const msgr)
+        : ThreadBase(),
+          action(ThreadAction(thrAction, modName))
+    {
+        if(action == ThreadAction::NoAction)
+        {
+            qDebug() << "Thread::action == ThreadAction::NoAction\nDeleting Thread.";
+            if(msgr) emit msgr->msg(d::INVALID_ACTION_, Msgr::Error);
+            deleteLater();
+        }
+        else
+        {
+            ThreadWorker *worker = new ThreadWorker(action, paused, pathMods, pathGame, msgr);
+            worker->moveToThread(&workerThread);
+
+            connect(&workerThread, &QThread::finished,           worker, &ThreadWorker::deleteLater);
+            connect(this,          &Thread::init,                worker, &ThreadWorker::init);
+            connect(worker,        &ThreadWorker::scanModUpdate, this,   &Thread::scanModUpdate);
+
+            switch(action.action)
+            {
+            case ThreadAction::ModData:
+                connect(worker, &ThreadWorker::modDataReady, this, &Thread::modDataReady);
+                connect(worker, &ThreadWorker::modDataReady, this, &Thread::deleteLater);
+                break;
+            case ThreadAction::Scan: case ThreadAction::ScanMounted:
+                connect(worker, &ThreadWorker::scanModReady, this, &Thread::scanModReady);
+                connect(worker, &ThreadWorker::scanModReady, this, &Thread::deleteLater);
+                break;
+            case ThreadAction::Shortcut:
+                connect(worker, &ThreadWorker::shortcutReady, this, &Thread::shortcutReady);
+                connect(worker, &ThreadWorker::shortcutReady, this, &Thread::deleteLater);
+                break;
+            default:
+                confirmWait = new QWaitCondition;
+                mutex = new QMutex;
+
+                progressDiag = new ProgressDiag(QApplication::activeModalWidget(), action.PROCESSING+" "+action.modName,
+                                                confirmWait);
+
+                worker->setWaitConditionEx(confirmWait, mutex);
+
+                connect(worker, &ThreadWorker::resultReady,    this,         &Thread::resultReady);
+                connect(worker, &ThreadWorker::resultReady,    this,         &Thread::processResult);
+                connect(worker, &ThreadWorker::progressUpdate, progressDiag, &ProgressDiag::showProgress);
+                connect(worker, &ThreadWorker::statusUpdate,   progressDiag, &ProgressDiag::appendStatus);
+
+                connect(progressDiag, &ProgressDiag::interrupted, this, &Thread::pause);
+                connect(progressDiag, &ProgressDiag::aborted,     this, &Thread::abort);
+
+                if(action == ThreadAction::Unmount)
+                    connect(progressDiag, &ProgressDiag::unmountForced, worker, &ThreadWorker::forceUnmount);
+
+                progressDiag->show();
+            }
+
+            workerThread.start(); // From this point on, call mutex->lock() ... mutex->unlock() before accessing action
+        }                         // (^if confirmWa!t/mutex/progressDiag != nullptr)
+    }
+
+    Thread::~Thread()
+    {
+        workerThread.quit();
+        workerThread.wait();
+        if(progressDiag)
+        {
+            progressDiag->close();
+            delete progressDiag;
+        }
+    }
+
+    void Thread::abort()
+    {
+        action.abort();
+        confirmWait->wakeAll();
+    }
+
+    void Thread::pause()
+    {
+        mutex->lock();
+        paused = true;
+        mutex->unlock();
+    }
+
+    void Thread::processResult()
+    {
+        bool deleteThread = true;
+
+        if(progressDiag)
+        {
+            progressDiag->disableAbort();
+
+            if(!action.errors()) progressDiag->close();
+            else
+            {
+                deleteThread = false;
+                connect(progressDiag, &ProgressDiag::accepted, this, &Thread::deleteLater);
+                connect(progressDiag, &ProgressDiag::rejected, this, &Thread::deleteLater);
+
+                                         // show Force button? (only as last resort)
+                progressDiag->showResult(!action.forced() && !action.aborted() && !action.get(ThreadAction::Success)
+                                         && action == ThreadAction::Unmount);
+
+                progressDiag->appendStatus(action.aborted()                      ? d::lABORTED+"."
+                                           : action.forced() || action.success() ? d::lDONE_
+                                                                                 : d::lFAILED+".");
+
+                progressDiag->showProgress(d::X_FILES_SUCCEEDED.arg(action.get(ThreadAction::Success))
+                                           +(action.get(ThreadAction::Failed)
+                                             ? ", "+d::X_FAILED.arg(d::X_FILES).arg(action.get(ThreadAction::Failed))
+                                             : QString())
+                                           +(action.get(ThreadAction::Missing)
+                                             ? ", "+d::X_MISSING.arg(d::X_FILES).arg(action.get(ThreadAction::Missing))
+                                             : QString())
+                                           +".");
+            }
+        }
+
+        if(deleteThread) deleteLater();
+    }

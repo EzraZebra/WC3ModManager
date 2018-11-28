@@ -1,32 +1,27 @@
 #ifndef SETTINGS_H
 #define SETTINGS_H
 
-#include "config.h"
 #include <QDialog>
-#include <QtWidgets>
 
-namespace Ui {
-class Settings;
-}
+class Msgr;
+class Config;
+class QLineEdit;
+class QCheckBox;
 
 class Settings : public QDialog
 {
     Q_OBJECT
 
-    Ui::Settings *ui;
-    Config *config;
-    void loadSettings();
+               QLineEdit *dirEdit;
+               QCheckBox *hideEmptyCbx;
 
-public:
-    explicit Settings(QWidget *parent = nullptr, Config *newConfig = new Config());
-    ~Settings();
+               Config &cfg;
+               Msgr   *const msgr;
 
-private slots:
-    void browseGame();
-    void save(QAbstractButton *);
+public:        Settings(QWidget *parent, Config &cfg, Msgr *const msgr);
 
-public slots:
-    int exec();
+private slots: void browseGame();
+               void accept();
 };
 
 #endif // SETTINGS_H

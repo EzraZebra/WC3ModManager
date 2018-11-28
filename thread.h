@@ -1,102 +1,124 @@
 #ifndef THREAD_H
 #define THREAD_H
 
-#include "mainwindow.h"
-#include <fstream>
+#include "_moddata.h"
+#include "threadbase.h"
+#include <QThread>
 
-#define PROCFILE_MOVE 0
-#define PROCFILE_COPY 1
-#define PROCFILE_LINK 2
-#define PROCFILE_SUCCESS 0
-#define PROCFILE_FAILED 1
-#define PROCFILE_MISSING 2
-#define PROCFILE_BACKUP_EXT ".wmmbackup"
+class Msgr;
+class ProgressDiag;
+class ThreadWorker;
 
-namespace Ui {
-class FileStatus;
-}
-
-class FileStatus : public QDialog
+class Thread : public ThreadBase
 {
     Q_OBJECT
 
-    Ui::FileStatus *ui;
+               QThread        workerThread;
+               ProgressDiag   *progressDiag = nullptr;
+               ThreadAction   action;
+               bool paused=false;
 
-public:
-    explicit FileStatus(QWidget *parent = nullptr);
-    ~FileStatus();
-    void setText(QString);
-    void setInfoText(QString);
-    void addErrorText(QString);
-    void result(bool=false);
+protected:     Thread(const ThreadAction::Action &thrAction, const QString &modName,
+                      const QString &pathMods, const QString &pathGame=QString(), Msgr *const msgr=nullptr);
 
-private slots:
-    void abort();
-    void forceUnmountClicked();
+               // ModData
+               Thread(const ThreadAction::Action &thrAction, const QString &pathMods)
+                   : Thread(thrAction, QString(), pathMods, QString()) {}
+               // Shortcut
+               Thread(const ThreadAction::Action &thrAction, Msgr *const msgr)
+                   : Thread(thrAction, QString(), QString(), QString(), msgr) {}
 
-signals:
-    void forceUnmount(bool=true);
+               ~Thread();
+
+signals:       void init(const int index=0, const QString &path1=QString(), const QString &path2=QString(),
+                         const QString &args=QString(), const mod_m &modData={});
+
+private slots: void abort();
+               void pause();
+               void processResult();
 };
 
-class Worker : public QObject
-{
-    Q_OBJECT
+/************************************/
+/**** PUBLIC THREAD CONSTRUCTORS ****/
+/************************************/
+    /**** MOUNT ****/
+    class ThreadMount : public Thread
+    {
+        Q_OBJECT
 
-    Config *config;
-    QString mod;
-    std::ofstream out_files;
-    std::ofstream backup_files;
+    public: ThreadMount(const QString &modName, const QString &pathMods, const QString &pathGame)
+                : Thread(ThreadAction::Mount, modName, pathMods, pathGame) {}
+            void init() { emit Thread::init(); }
+    };
 
-    int deleteFile(QString);
-    std::array<int, 3> mountModIterator(QString, QString);
-    std::pair<int, std::string> moveFile(QString, QString, int=PROCFILE_MOVE);
-    void removePath(QString, QString="");
+    /**** UNMOUNT ****/
+    class ThreadUnmount : public Thread
+    {
+        Q_OBJECT
 
-public:
-    Worker(Config*, QString="");
-    bool abort = false;
+    public: ThreadUnmount(const QString &modName, const QString &pathMods, const QString &pathGame)
+                : Thread(ThreadAction::Unmount, modName, pathMods, pathGame) {}
+            void init() { emit Thread::init(); }
+    };
 
-public slots:
-    void scanModWorker(int);
-    void mountModWorker();
-    void unmountModWorker(bool=false);
-    void deleteModWorker();
-    void moveFolderWorker(QString, QString, int=PROCFILE_MOVE);
+    /**** MOD DATA ****/
+    class ThreadModData : public Thread
+    {
+        Q_OBJECT
 
-signals:
-    void scanModUpdate(QString, QString, int);
-    void scanModDone(QString, QString);
-    void resultReady(QString, int, int, int, bool, bool=false);
-    void status(QString, bool=false);
-    void appendAction(QString);
-};
+            const mod_m modData;
+    public: ThreadModData(const QString &pathMods, const mod_m &modData)
+                : Thread(ThreadAction::ModData, pathMods),
+                  modData(modData) {}
+            void init() { emit Thread::init(0, QString(), QString(), QString(), modData); }
+    };
 
-class Controller : public QObject
-{
-    Q_OBJECT
+    /**** DELETE ****/
+    class ThreadDelete : public Thread
+    {
+        Q_OBJECT
 
-    QThread workerThread;
-    QString action;
-    QString mod;
-    FileStatus *fileStatus=nullptr;
+    public: ThreadDelete(const QString &modName, const QString &pathMods, const QString &pathGame)
+                : Thread(ThreadAction::Delete, modName, pathMods, pathGame) {}
+            void init() { emit Thread::init(); }
+    };
 
-public:
-    Controller(MainWindow *, QString, QString, bool=true);
-    ~Controller();
-    Worker *worker;
+    /**** ADD ****/
+    class ThreadAdd : public Thread
+    {
+        Q_OBJECT
 
-private slots:
-    void result(QString, int, int, int, bool, bool=false);
-    void status(QString, bool=false);
-    void appendAction(QString);
-    void abort();
+            const QString src, dst;
+            const Mode mode;
+    public: ThreadAdd(const QString &modName, const QString &src, const QString &dst, const Mode &mode,
+                      const QString &pathMods, const QString &pathGame)
+                : Thread(ThreadAction::Add, modName, pathMods, pathGame),
+                  src(src), dst(dst), mode(mode) {}
+            void init() { emit Thread::init(mode, src, dst); }
+    };
 
-signals:
-    void scanMod(int=0);
-    void mountMod();
-    void unmountMod(bool=false);
-    void deleteMod();
-    void moveFolder(QString, QString, int=PROCFILE_MOVE);
-};
+    /**** SCAN ****/
+    class ThreadScan : public Thread
+    {
+        Q_OBJECT
+
+    public: ThreadScan(const QString &modName, const QString &pathMods, const bool mounted=false)
+                : Thread(mounted ? ThreadAction::ScanMounted : ThreadAction::Scan, modName, pathMods) {}
+            void init() { emit Thread::init(); }
+    };
+
+    /**** SHORTCUT ****/
+    class ThreadShortcut : public Thread
+    {
+        Q_OBJECT
+
+            const QString dst, args, iconPath;
+            const int iconIndex;
+    public: ThreadShortcut(const QString &dst, const QString &args,
+                           const QString &iconPath, const int iconIndex, Msgr *const msgr)
+                : Thread(ThreadAction::Shortcut, msgr),
+                  dst(dst), args(args), iconPath(iconPath), iconIndex(iconIndex) {}
+            void init() { emit Thread::init(iconIndex, dst, iconPath, args); }
+    };
 
 #endif // THREAD_H

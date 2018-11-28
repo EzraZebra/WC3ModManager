@@ -1,61 +1,72 @@
+#include "_dic.h"
+#include "_msgr.h"
+#include "config.h"
 #include "settings.h"
-#include "ui_settings.h"
-#include "utils.h"
 
-Settings::Settings(QWidget *parent, Config *newConfig) :
-    QDialog(parent),
-    ui(new Ui::Settings)
+#include <QFormLayout>
+#include <QLineEdit>
+#include <QPushButton>
+#include <QCheckBox>
+#include <QDialogButtonBox>
+#include <QFileDialog>
+
+Settings::Settings(QWidget *parent, Config &cfg, Msgr *const msgr) : QDialog(parent, Qt::MSWindowsFixedSizeDialogHint),
+    cfg(cfg),
+    msgr(msgr)
 {
-    ui->setupUi(this);
-    setWindowFlag(Qt::MSWindowsFixedSizeDialogHint);
+    setWindowTitle(d::SETTINGS);
+    QVBoxLayout *layout = new QVBoxLayout;
+    setLayout(layout);
 
-    config = newConfig;
+        QFormLayout *formLayout = new QFormLayout;
+        layout->addLayout(formLayout);
 
-    connect(ui->dirBtn, SIGNAL(clicked()), this, SLOT(browseGame()));
-    connect(ui->buttonBox, SIGNAL(clicked(QAbstractButton *)), this, SLOT(save(QAbstractButton *)));
-}
+            QHBoxLayout *dirLayout = new QHBoxLayout;
+            formLayout->addRow(d::X_uFOLDER.arg(d::WC3)+":", dirLayout);
 
-void Settings::loadSettings()
-{
-    ui->dirEdit->setText(QDir::toNativeSeparators(QString::fromStdString(config->getSetting("GamePath"))));
-    ui->hideEmptyCbx->setChecked(config->getSetting("hideEmptyMods") == "1");
-}
+                dirEdit = new QLineEdit;
+                dirLayout->addWidget(dirEdit);
+                dirEdit->setPlaceholderText(d::NO_X_X.arg(d::X_FOLDER.arg(d::lGAME), d::lSET));
+                dirEdit->setText(QDir::toNativeSeparators(cfg.getSetting(Config::kGamePath)));
+                QPushButton *dirBtn = new QPushButton(d::BROWSE___);
+                dirLayout->addWidget(dirBtn);
 
-void Settings::save(QAbstractButton *btn)
-{
-    if(ui->buttonBox->standardButton(btn) == QDialogButtonBox::Apply)
-    {
-        QString gamePath = ui->dirEdit->text();
-        QFileInfo fiGamePath(gamePath);
-        if(!fiGamePath.exists() || !fiGamePath.isDir())
-            QMessageBox::warning(this, "Error", "Warcraft III Folder: invalid folder.");
-        else
-        {
-            config->setSetting("GamePath", gamePath.toStdString());
-            config->setSetting("hideEmptyMods", ui->hideEmptyCbx->isChecked() ? "1" : "0");
-            config->saveConfig();
-            accept();
-        }
-    }
+            hideEmptyCbx = new QCheckBox(d::HIDE_EMPTY);
+            formLayout->addRow(hideEmptyCbx);
+            hideEmptyCbx->setChecked(cfg.getSetting(Config::kHideEmpty) == Config::vOn);
+
+
+        QDialogButtonBox *buttonBox = new QDialogButtonBox(QDialogButtonBox::Ok|QDialogButtonBox::Cancel);
+        layout->addWidget(buttonBox);
+
+    connect(dirBtn,    &QPushButton::clicked,       this, &Settings::browseGame);
+    connect(buttonBox, &QDialogButtonBox::accepted, this, &Settings::accept);
+    connect(buttonBox, &QDialogButtonBox::rejected, this, &Settings::reject);
 }
 
 void Settings::browseGame()
 {
-    QString folder = ui->dirEdit->text();
+    QString path = dirEdit->text().simplified();
 
-    folder = QFileDialog::getExistingDirectory(this, "Warcraft III Folder", folder,
-                                                 QFileDialog::ShowDirsOnly | QFileDialog::HideNameFilterDetails);
+    path = QFileDialog::getExistingDirectory(this, d::X_uFOLDER.arg(d::WC3), path, QFileDialog::ShowDirsOnly);
 
-    if(folder != "") ui->dirEdit->setText(QDir::toNativeSeparators(folder));
+    if(!path.isEmpty()) dirEdit->setText(QDir::toNativeSeparators(path));
 }
 
-int Settings::exec()
+void Settings::accept()
 {
-    loadSettings();
-    return QDialog::exec();
-}
+    emit msgr->msg(d::SAVING_SETTINGS___, Msgr::Busy);
 
-Settings::~Settings()
-{
-    delete ui;
+    const QFileInfo &fiDir(dirEdit->text().simplified());
+    if(fiDir.isSymLink() || !fiDir.exists() || !fiDir.isDir())
+        emit msgr->msg(d::X_FOLDER.arg(d::WC3)+": "+d::lINVALID_X.arg(d::lFOLDER)+".", Msgr::Error);
+    else
+    {
+        cfg.saveSetting(Config::kGamePath, dirEdit->text().simplified());
+        cfg.saveSetting(Config::kHideEmpty, hideEmptyCbx->isChecked() ? Config::vOn : Config::vOff);
+        cfg.saveConfig();
+
+        emit msgr->msg(d::SETTINGS_SAVED_, Msgr::Default);
+        QDialog::accept();
+    }
 }
