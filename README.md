@@ -2,7 +2,7 @@
 
 The easiest and most reliable way to mod Warcraft III is using the "Allow Local Files" registry setting, which allows custom files in the game's install folder to be loaded by the game.
 
-This project aims to make it as easy as possible to manage and play mods.
+This project aims to make it as easy as possible to manage and play these mods.
 
 The latest binary can be downloaded on [The Hive Workshop](https://www.hiveworkshop.com/threads/wc3-mod-manager.308948/).
 
@@ -14,6 +14,6 @@ The latest binary can be downloaded on [The Hive Workshop](https://www.hiveworks
 # Contributing
 WC3 Mod Manager is currently being developed in [Qt Creator 4.7.1](https://www.qt.io/download-qt-installer) and built with Qt 5.12.0/MinGW 7.3.0 64bit.
 
-You should be able to import the project in other IDEs and MSVC should be able to compile, but I haven't tested.
+You should be able to use other IDEs and compilers, but I haven't tested. If you succeed in doing so, I would appreciate it if you could provide me with instructions so I can include them here.
 
 Please feel free to fork, make pull requests, etc.
