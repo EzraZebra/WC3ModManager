@@ -61,6 +61,8 @@ class ThreadWorker : public ThreadBase
               ThreadAction &action;
 
               bool &paused;
+              qint64 modSize=0;
+              int fileCount=0;
 
 public:       ThreadWorker(ThreadAction &action, bool &paused, const QString &pathMods, const QString &pathGame, Msgr *const msgr)
                 : ThreadBase(),
@@ -71,13 +73,12 @@ public:       ThreadWorker(ThreadAction &action, bool &paused, const QString &pa
               void setWaitConditionEx(QWaitCondition *waitCond, QMutex *mutex)
               { confirmWait = waitCond; this->mutex = mutex; }
 
-public slots: void init(const int index=0, const QString &path1=QString(), const QString &path2=QString(),
+public slots: void init(const int index=0, const QString &data1=QString(), const QString &data2=QString(),
                         const QString &args=QString(), const mod_m &modData={});
 
               void forceUnmount();
 
 private:      static QString B2MB(double size);
-              static qint64 getSize(const QFileInfo &fi);
 
               ThreadAction::Result processFile(const QString &src, const QString &dst,
                                                const Mode &mode=Move, const bool logBackups=false);
@@ -85,12 +86,13 @@ private:      static QString B2MB(double size);
               void                 removePath(const QString &path, const QString &stopPath=QString());
 
               void modDataWorker(const mod_m &modData);
-              void scanPathIterator(const QString &path, qint64 &modSize, int &fileCount, const bool emitUpdate=false);
+              void scanPath(const QString &path, const bool subtract=false);
               void scanModWorker();
               void scanMountedModWorker();
+              void checkState();
               void mountModIterator(QString relativePath=QString());
               void mountModWorker();
-              void unmountModWorker();
+              void unmountModWorker(QString modSize=QString(), QString fileCount=QString());
               void addModWorker(const QString &src, const QString &dst, const Mode &mode);
               void deleteModWorker();
               void shortcutWorker(const QString &dst, const QString &args, const QString &iconPath, const int iconIndex);

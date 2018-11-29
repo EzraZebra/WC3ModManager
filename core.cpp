@@ -158,21 +158,21 @@ Core::MountResult Core::mountMod(const QString &modName, const bool startThread)
         }
         else if(startThread)
         {
-            mountModThread(modName)->init();
+            mountModThread(modName)->start();
             return MountStarted;
         }
         else return MountReady;
     }
 }
 
-ThreadMount* Core::mountModThread(const QString &modName)
+Thread* Core::mountModThread(const QString &modName)
 {
     showMsg(d::MOUNTING_X___.arg(modName), Msgr::Busy);
 
     cfg.saveSetting(Config::kMounted, modName);
     cfg.saveConfig();
 
-    ThreadMount *thr = new ThreadMount(modName, cfg.pathMods, cfg.getSetting(Config::kGamePath));
+    Thread *thr = new Thread(ThreadAction::Mount, modName, cfg.pathMods, cfg.getSetting(Config::kGamePath));
     connect(thr, SIGNAL(resultReady(const ThreadAction&)), parent(), SLOT(mountModReady(const ThreadAction&)));
     return thr;
 }
@@ -203,7 +203,7 @@ bool Core::unmountMod(const bool startThread)
 {
     if(!cfg.getSetting(Config::kMounted).isEmpty())
     {
-        if(startThread) unmountModThread()->init();
+        if(startThread) unmountModThread()->start();
 
         return true;
     }
@@ -215,11 +215,11 @@ bool Core::unmountMod(const bool startThread)
     }
 }
 
-ThreadUnmount* Core::unmountModThread()
+Thread* Core::unmountModThread()
 {
     showMsg(d::UNMOUNTING_X___.arg(cfg.getSetting(Config::kMounted)), Msgr::Busy);
 
-    ThreadUnmount *thr = new ThreadUnmount(cfg.getSetting(Config::kMounted), cfg.pathMods, cfg.getSetting(Config::kGamePath));
+    Thread *thr = new Thread(ThreadAction::Unmount, cfg.getSetting(Config::kMounted), cfg.pathMods, cfg.getSetting(Config::kGamePath));
     connect(thr, SIGNAL(resultReady(const ThreadAction&)), parent(), SLOT(unmountModReady(const ThreadAction&)));
 
     return thr;

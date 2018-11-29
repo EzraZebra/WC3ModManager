@@ -19,44 +19,43 @@ class ModNameItem : public QFrame
 {
     Q_OBJECT
 
-        QLabel *iconLbl;
-
-public: explicit ModNameItem(const QString &modName);
-
-        void showIcon(const bool show=true);
+public: QLabel *icon;
+        explicit ModNameItem(const QString &modName);
 };
 
 class ModDataItem : public QFrame
 {
     Q_OBJECT
 
-        QLabel *totalTitle, *totalData, *mountedTitle, *mountedData;
+        const QString zero;
 
-public: bool isMounted=false;
+        QLabel *totalTitle, *mountedTitle;
+public: QLabel *totalData,  *mountedData;
 
         explicit ModDataItem(const QString &zero, const bool alignRight=false);
 
-        bool showMounted(const bool hide);
-        bool setTotalData(const QString &total);
-        bool setMountedData(const QString &mounted);
+        bool updateView(const QString &total, const QString &mounted);
+        bool updateData(const QString &data, const bool isMounted);
 };
 
 class ModTable : public QTableWidget
 {
     Q_OBJECT
 
-public:       mod_m       modData;
+public:       static const int modItemMrg = 2;
+
+              mod_m       modData;
               QStringList modNames;
 
               ModTable();
 
-private:      ModDataItem* dataItem(const int row, const bool files) const
+              ModDataItem* dataItem(const int row, const bool files) const
               { return dynamic_cast<ModDataItem *>(cellWidget(row, 1+files)); }
 
               ModNameItem* nameItem(const int row) const
               { return dynamic_cast<ModNameItem *>(cellWidget(row, 0)); }
 
-public:       int row(const QString &modName) const
+              int row(const QString &modName) const
               { return modData.find(modName) == modData.end() ? -1 : std::get<int(ModData::Row)>(modData.at(modName)); }
 
               bool tryBusy(const QString &modName);
@@ -66,11 +65,11 @@ public:       int row(const QString &modName) const
               void resizeCR(const int row);
               bool modSelected() const { return currentRow() >= 0 && currentRow() < rowCount(); }
 
-              int  addMod(const QString &modName);
-              void setMounted(const QString &modName, const QString &errorList);
-
-public slots: void updateMod    (const QString &modName, const QString &modSize, const QString &fileCount);
-              void updateMounted(const QString &modName, const QString &modSize, const QString &fileCount);
+private:      void updateMod    (const QString &modName, const QString &modSize, const QString &fileCount, const bool isMounted);
+public slots: void updateTotal  (const QString &modName, const QString &modSize, const QString &fileCount)
+              { updateMod(modName, modSize, fileCount, false); }
+              void updateMounted(const QString &modName, const QString &modSize, const QString &fileCount)
+              { updateMod(modName, modSize, fileCount, true); }
 };
 
 class MainWindow : public QMainWindow
@@ -106,7 +105,7 @@ private:       void showMsg   (const QString &msg, const Msgr::Type &msgType=Msg
 
                void updateLaunchBtns();
                void updateAllowOrVersion(const bool version=false);
-               void updateMountState(const bool setFocus=false);
+               void updateMountState(const QString &modName=QString());
 private slots: void launchEditor();
                void setAllowOrVersion(const bool enable, const bool version=false);
                void setVersion(const bool enable){ setAllowOrVersion(enable, true); }

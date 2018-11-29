@@ -451,9 +451,9 @@
                 else
                 {
                     error = false;
-                    ThreadShortcut *thr = new ThreadShortcut(path+"/"+name, getArgs(), iconPath, iconIndex, msgr);
-                    connect(thr, &ThreadShortcut::shortcutReady, this, &Shortcuts::shortcutReady);
-                    thr->init();
+                    Thread *thr = new Thread(ThreadAction::Shortcut, msgr);
+                    connect(thr, &Thread::shortcutReady, this, &Shortcuts::shortcutReady);
+                    thr->start(path+"/"+name, getArgs(), iconPath, iconIndex);
                 }
             }
         }

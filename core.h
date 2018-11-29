@@ -7,7 +7,7 @@
 #include <QPixmap>
 
 class ThreadAction;
-class ThreadMount;
+class Thread;
 class ThreadUnmount;
 class QSplashScreen;
 
@@ -38,12 +38,12 @@ public slots:  void launch(const bool editor=false, const QString &args=QString(
 
 public:        bool setAllowOrVersion(const bool enable, const bool version=false);
 
-               MountResult    mountMod(const QString &modName, const bool startThread=true);
-               bool           unmountMod(const bool startThread=true);
-               ThreadMount*   mountModThread(const QString &modName);
-               ThreadUnmount* unmountModThread();
-               bool           mountModReady  (const ThreadAction &action);
-               bool           unmountModReady(const ThreadAction &action);
+               MountResult mountMod(const QString &modName, const bool startThread=true);
+               bool        unmountMod(const bool startThread=true);
+               Thread*     mountModThread(const QString &modName);
+               Thread*     unmountModThread();
+               bool        mountModReady  (const ThreadAction &action);
+               bool        unmountModReady(const ThreadAction &action);
 
                static QString a2s(const ThreadAction &action);
 private:       static QString a2e(const ThreadAction &action);
