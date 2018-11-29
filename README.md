@@ -12,7 +12,7 @@ The latest binary can be downloaded on [The Hive Workshop](https://www.hiveworks
 * Toggle "Expansion" - switch between classic and expansion
 
 # Contributing
-WC3 Mod Manager is currently being developed in [Qt Creator 4.7.1](https://www.qt.io/download-qt-installer) and built with Qt 5.12.0/MinGW 7.3.0 64bit.
+WC3 Mod Manager is currently being developed in [Qt Creator 4.7.2](https://www.qt.io/download-qt-installer) and built with Qt 5.12.0/MinGW 7.3.0 64bit.
 
 You should be able to use other IDEs and compilers, but I haven't tested. If you succeed in doing so, I would appreciate it if you could provide me with instructions so I can include them here.
 
