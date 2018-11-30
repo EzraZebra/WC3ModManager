@@ -10,6 +10,9 @@ The latest binary can be downloaded on [The Hive Workshop](https://www.hiveworks
 * Mount/Unmount mod - create/delete symbolic links in the WC3 folder to the mod's files
 * Toggle "Allow Local Files" - enable/disable loading of custom files in the WC3 folder
 * Toggle "Expansion" - switch between classic and expansion
+### Other Features
+* Create Shortcuts - create shortcuts that directly launch a specific mod
+** Works through command line arguments
 
 # Contributing
 WC3 Mod Manager is currently being developed in [Qt Creator 4.7.2](https://www.qt.io/download-qt-installer) and built with Qt 5.12.0/MinGW 7.3.0 64bit.
