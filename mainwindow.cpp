@@ -497,8 +497,9 @@ void MainWindow::launchEditor()
 
 void MainWindow::setAllowOrVersion(const bool enable, const bool version)
 {
-    if(!core->setAllowOrVersion(enable, version))
-        updateAllowOrVersion(version);
+    if(core->setAllowOrVersion(enable, version))
+        updateLaunchBtns();
+    else updateAllowOrVersion(version);
 }
 
 void MainWindow::refresh(const bool silent)
