@@ -153,6 +153,8 @@
         {
             modNames.insert(row, modName);
             modData.insert({ modName, newModT(row, true) }); // Adding mod -> Busy = true
+            for(int i=row+1; i < modNames.length(); ++i) // Renumber mods following added
+                std::get<int(ModData::Row)>(modData[modNames[i]]) = i;
         }
 
         insertRow(row);
