@@ -68,6 +68,7 @@ signals:   void modDataReady(const mod_m &modData, const QStringList &modNames);
            void scanModUpdate(const QString &modName, const QString &modSize, const QString &fileCount);
            void scanModReady(const QString &modName);
            void resultReady(const ThreadAction &action);
+           void addModCreated(const QString &modName, const int row, const bool addData=true);
            void shortcutReady();
 };
 

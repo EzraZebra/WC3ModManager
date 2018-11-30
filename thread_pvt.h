@@ -86,6 +86,7 @@ private:      static QString B2MB(double size);
               void                 removePath(const QString &path, const QString &stopPath=QString());
 
               void modDataWorker(const mod_m &modData);
+              void scanFile(const QFileInfo &fi, const bool subtract=false);
               void scanPath(const QString &path, const bool subtract=false);
               void scanModWorker();
               void scanMountedModWorker();

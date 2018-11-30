@@ -66,7 +66,8 @@ public:       static const int modItemMrg = 2;
               bool modSelected() const { return currentRow() >= 0 && currentRow() < rowCount(); }
 
 private:      void updateMod    (const QString &modName, const QString &modSize, const QString &fileCount, const bool isMounted);
-public slots: void updateTotal  (const QString &modName, const QString &modSize, const QString &fileCount)
+public slots: void addMod       (const QString &modName, const int row, const bool addData=false);
+              void updateTotal  (const QString &modName, const QString &modSize, const QString &fileCount)
               { updateMod(modName, modSize, fileCount, false); }
               void updateMounted(const QString &modName, const QString &modSize, const QString &fileCount)
               { updateMod(modName, modSize, fileCount, true); }

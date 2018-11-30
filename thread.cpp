@@ -316,73 +316,64 @@
 
             modNames << modName;
 
-            mod_t mod = modData.find(modName) != modData.end() ? modData.at(modName) : mod_t{};
-            std::get<int(ModData::Row)>(mod) = i;
+            mod_t mod;
+            if(modData.find(modName) != modData.end())
+            {
+                mod = modData.at(modName);
+                std::get<int(ModData::Row)>(mod) = i;
+            }
+            else mod = newModT(i);
             newData.insert({ modName, mod });
         }
 
         emit modDataReady(newData, modNames);
     }
 
-    void ThreadWorker::scanPath(const QString &path, const bool subtract)
+    void ThreadWorker::scanFile(const QFileInfo &fi, const bool subtract)
     {
-        QFileInfo itrFi(path);
-        QDirIterator pathItr(path, QDir::NoDotAndDotDot|QDir::Files|QDir::Hidden|QDir::System,
-                             QDirIterator::Subdirectories);
-
-        bool hasNext = false, start = true;
-        if(!itrFi.isSymLink() && itrFi.isDir())
+        qint64 size = 0;
+        if(fi.isSymLink() && fi.size() == QFileInfo(fi.symLinkTarget()).size())
         {
-            start = pathItr.hasNext();
-            if(start)
+            QFile file(fi.filePath());
+            if(file.exists() && file.open(QIODevice::ReadOnly))
+                size = file.size();
+            file.close();
+        }
+        if(size == 0) size = fi.size();
+
+        modSize += (subtract ? -1 : 1) * size;
+        fileCount += subtract ? -1 : 1;
+
+        QString qsModSize = "0.00";
+        double sizeMB = modSize;
+        if(sizeMB > 0)
+        {
+            sizeMB = sizeMB/1024/1024;
+            if(sizeMB < 0.01) qsModSize = "< 0.01";
+            else
             {
-                pathItr.next();
-                itrFi = pathItr.fileInfo();
-                hasNext = pathItr.hasNext();
+                qsModSize = QString::number(round(sizeMB*100)/100);
+                if(qsModSize.lastIndexOf('.') == qsModSize.length()-2)
+                    qsModSize += "0";
+                else if(qsModSize.lastIndexOf('.') == -1)
+                    qsModSize += ".00";
             }
         }
 
-        if(start) do
+        emit scanModUpdate(action.modName, d::X_MB.arg(qsModSize), d::X_FILES.arg(fileCount));
+    }
+
+    void ThreadWorker::scanPath(const QString &path, const bool subtract)
+    {
+        QFileInfo itrFi(path);
+        if(itrFi.isSymLink() || !itrFi.isDir()) scanFile(itrFi, subtract);
+        else for(QDirIterator pathItr(path, QDir::NoDotAndDotDot|QDir::Files|QDir::Hidden|QDir::System,
+                                      QDirIterator::Subdirectories);
+                 pathItr.hasNext(); )
         {
-            qint64 size = 0;
-            if(itrFi.isSymLink() && itrFi.size() == QFileInfo(itrFi.symLinkTarget()).size())
-            {
-                QFile file(itrFi.filePath());
-                if(file.exists() && file.open(QIODevice::ReadOnly))
-                    size = file.size();
-                file.close();
-            }
-            if(size == 0) size = itrFi.size();
-
-            modSize += (subtract ? -1 : 1) * size;
-            fileCount += subtract ? -1 : 1;
-
-            QString qsModSize = "0.00";
-            double sizeMB = modSize;
-            if(sizeMB > 0)
-            {
-                sizeMB = sizeMB/1024/1024;
-                if(sizeMB < 0.01) qsModSize = "< 0.01";
-                else
-                {
-                    qsModSize = QString::number(round(sizeMB*100)/100);
-                    if(qsModSize.lastIndexOf('.') == qsModSize.length()-2)
-                        qsModSize += "0";
-                    else if(qsModSize.lastIndexOf('.') == -1)
-                        qsModSize += ".00";
-                }
-            }
-
-            emit scanModUpdate(action.modName, d::X_MB.arg(qsModSize), d::X_FILES.arg(fileCount));
-
-            if(start) start = false;
-            else hasNext = pathItr.hasNext();
-            if(hasNext)
-            {
-                pathItr.next();
-                itrFi = pathItr.fileInfo();
-            }
-        } while(hasNext);
+            pathItr.next();
+            scanFile(pathItr.fileInfo(), subtract);
+        }
     }
 
     void ThreadWorker::scanModWorker()
@@ -568,17 +559,40 @@
 
     void ThreadWorker::addModWorker(const QString &src, const QString &dst, const Mode &mode)
     {
-        for(QDirIterator itSrc(src, QDir::NoDotAndDotDot|QDir::AllEntries|QDir::Hidden|QDir::System, QDirIterator::Subdirectories);
-            !action.aborted() && itSrc.hasNext(); )
+        bool created = false;
+        for(QDirIterator srcItr(src, QDir::NoDotAndDotDot|QDir::Files|QDir::Hidden|QDir::System, QDirIterator::Subdirectories);
+            !action.aborted() && srcItr.hasNext(); )
         {
-            itSrc.next();
-            const QString &relativePath = itSrc.filePath().remove(src+"/");
+            srcItr.next();
+            const QString relativePath = srcItr.filePath().remove(src+"/"),
+                          itrDst = dst+"/"+relativePath;
 
             emit progressUpdate(relativePath);
 
-            action.add(processFile(itSrc.filePath(), dst+"/"+relativePath, mode));
+            ThreadAction::Result result = processFile(srcItr.filePath(), itrDst, mode);
+            action.add(result);
 
-            QCoreApplication::processEvents(); // Allow signals to come through
+            if(result == ThreadAction::Success)
+            {
+                if(!created)
+                {
+                    int row=-1;
+                    for(QDirIterator itMods(pathMods, QDir::NoDotAndDotDot|QDir::Dirs|QDir::NoSymLinks);
+                        itMods.hasNext() && QDir(itMods.filePath()).dirName() != action.modName;
+                        ++row) itMods.next();
+
+                    if(row != -1)
+                    {
+                        created = true;
+                        emit addModCreated(action.modName, row);
+                        QThread::msleep(10); // make sure signal arrives first
+                    }
+                }
+
+                if(created) scanFile(itrDst);
+            }
+
+            checkState();
         }
 
         emit resultReady(action);
@@ -633,7 +647,7 @@
             };
         if(!args.isEmpty())     cmds << QString("$s.Arguments='%0';").arg(args);
         if(!iconPath.isEmpty()) cmds << QString("$s.IconLocation='%0, %1';")
-                                        .arg(QDir::toNativeSeparators(iconPath), iconIndex);
+                                            .arg(QDir::toNativeSeparators(iconPath), iconIndex);
         cmds << QString("$s.Save()");
 
         QProcess powershell(this);
@@ -703,12 +717,14 @@
 
                 if(action == ThreadAction::Unmount)
                     connect(progressDiag, &ProgressDiag::unmountForced, worker, &ThreadWorker::forceUnmount);
+                else if(action == ThreadAction::Add)
+                    connect(worker, &ThreadWorker::addModCreated, this, &Thread::addModCreated);
 
                 progressDiag->show();
             }
 
-            workerThread.start(); // From this point on, call mutex->lock() ... mutex->unlock() before accessing action
-        }                         // (^if confirmWa!t/mutex/progressDiag != nullptr)
+            workerThread.start();
+        }
     }
 
     Thread::~Thread()

@@ -147,6 +147,28 @@
         resizeRowToContents(row);
     }
 
+    void ModTable::addMod(const QString &modName, const int row, const bool addData)
+    {
+        if(addData)
+        {
+            modNames.insert(row, modName);
+            modData.insert({ modName, newModT(row, true) }); // Adding mod -> Busy = true
+        }
+
+        insertRow(row);
+
+        ModNameItem *nameItem  = new ModNameItem(modName);
+        ModDataItem *sizeItem  = new ModDataItem(d::ZERO_MB, true),
+                    *filesItem = new ModDataItem(d::ZERO_FILES);
+        setCellWidget(row, 0, nameItem);
+        setCellWidget(row, 1, sizeItem);
+        setCellWidget(row, 2, filesItem);
+        nameItem->setFont(font());
+        sizeItem->setFont(font());
+        filesItem->setFont(font());
+        resizeCR(row);
+    }
+
     void ModTable::updateMod(const QString &modName, const QString &modSize, const QString &fileCount, const bool isMounted)
     {
         const int row = this->row(modName);
@@ -511,18 +533,7 @@ void MainWindow::modDataReady(const mod_m &modData, const QStringList &modNames)
     {
         const int row = modTable->rowCount();
 
-        modTable->insertRow(row);
-
-        ModNameItem *nameItem  = new ModNameItem(modName);
-        ModDataItem *sizeItem  = new ModDataItem(d::ZERO_MB, true),
-                    *filesItem = new ModDataItem(d::ZERO_FILES);
-        modTable->setCellWidget(row, 0, nameItem);
-        modTable->setCellWidget(row, 1, sizeItem);
-        modTable->setCellWidget(row, 2, filesItem);
-        nameItem->setFont(modTable->font());
-        sizeItem->setFont(modTable->font());
-        filesItem->setFont(modTable->font());
-        modTable->resizeCR(row);
+        modTable->addMod(modName, row);
 
         if(modName == selectedMod) selectedRow = row;
 
@@ -640,8 +651,6 @@ void MainWindow::unmountModReady(const ThreadAction &action)
 
 void MainWindow::addMod()
 {
-    showMsg(d::ADDING_X___.arg(d::lMOD), Msgr::Busy);
-
     const QString &src = QFileDialog::getExistingDirectory(this, d::ADD_uMOD, QString(),
                                                            QFileDialog::ShowDirsOnly|QFileDialog::HideNameFilterDetails);
 
@@ -668,7 +677,9 @@ void MainWindow::addMod()
                 showMsg(d::ADDING_X___.arg(modName), Msgr::Busy);
 
                 Thread *thr = new Thread(ThreadAction::Add, modName, core->cfg.pathMods, core->cfg.getSetting(Config::kGamePath));
-                connect(thr, &Thread::resultReady, this, &MainWindow::addModReady);
+                connect(thr, &Thread::resultReady,   this,     &MainWindow::addModReady);
+                connect(thr, &Thread::scanModUpdate, modTable, &ModTable::updateTotal);
+                connect(thr, &Thread::addModCreated, modTable, &ModTable::addMod);
                 thr->start(src, dst, copyMove.clickedButton() == copyBtn ? Thread::Copy : Thread::Move);
             }
         }
@@ -677,7 +688,7 @@ void MainWindow::addMod()
 
 void MainWindow::addModReady(const ThreadAction &action)
 {
-    refresh(true);
+    modTable->setIdle(action.modName);
     showMsg(Core::a2s(action));
 }
 
