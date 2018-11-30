@@ -119,10 +119,7 @@ private slots: void launchEditor();
                void unmountMod();
                void addMod();
                void deleteMod();
-               void mountModReady  (const ThreadAction &action);
-               void unmountModReady(const ThreadAction &action);
-               void addModReady    (const ThreadAction &action);
-               void deleteModReady (const ThreadAction &action);
+               void actionReady(const ThreadAction &action);
 
                void renameModAction();
                void renameModStart(QTableWidgetItem *item);
@@ -132,6 +129,7 @@ private slots: void launchEditor();
                void openGameFolder();
                void openModsFolder();
                void openModFolder();
+
                void openShortcuts();
                void openSettings();
                void openAbout();

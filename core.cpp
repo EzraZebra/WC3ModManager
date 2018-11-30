@@ -137,7 +137,7 @@ bool Core::setAllowOrVersion(const bool enable, const bool version)
     return false;
 }
 
-Core::MountResult Core::mountMod(const QString &modName, const bool startThread)
+Core::MountResult Core::mountModCheck(const QString &modName)
 {
     if(!cfg.getSetting(Config::kMounted).isEmpty())
     {
@@ -156,11 +156,6 @@ Core::MountResult Core::mountMod(const QString &modName, const bool startThread)
             showMsg(d::INVALID_X.arg(d::X_FOLDER).arg(d::WC3)+".", Msgr::Error);
             return MountFailed;
         }
-        else if(startThread)
-        {
-            mountModThread(modName)->start();
-            return MountStarted;
-        }
         else return MountReady;
     }
 }
@@ -172,9 +167,7 @@ Thread* Core::mountModThread(const QString &modName)
     cfg.saveSetting(Config::kMounted, modName);
     cfg.saveConfig();
 
-    Thread *thr = new Thread(ThreadAction::Mount, modName, cfg.pathMods, cfg.getSetting(Config::kGamePath));
-    connect(thr, SIGNAL(resultReady(const ThreadAction&)), parent(), SLOT(mountModReady(const ThreadAction&)));
-    return thr;
+    return new Thread(ThreadAction::Mount, modName, cfg.pathMods, cfg.getSetting(Config::kGamePath));
 }
 
 bool Core::mountModReady(const ThreadAction &action)
@@ -199,18 +192,13 @@ bool Core::mountModReady(const ThreadAction &action)
     return action.success() && !action.errors();
 }
 
-bool Core::unmountMod(const bool startThread)
+bool Core::unmountModCheck()
 {
     if(!cfg.getSetting(Config::kMounted).isEmpty())
-    {
-        if(startThread) unmountModThread()->start();
-
         return true;
-    }
     else
     {
         showMsg(d::NO_MOD_X_.arg(d::lMOUNTED), Msgr::Error);
-
         return false;
     }
 }
@@ -219,10 +207,7 @@ Thread* Core::unmountModThread()
 {
     showMsg(d::UNMOUNTING_X___.arg(cfg.getSetting(Config::kMounted)), Msgr::Busy);
 
-    Thread *thr = new Thread(ThreadAction::Unmount, cfg.getSetting(Config::kMounted), cfg.pathMods, cfg.getSetting(Config::kGamePath));
-    connect(thr, SIGNAL(resultReady(const ThreadAction&)), parent(), SLOT(unmountModReady(const ThreadAction&)));
-
-    return thr;
+    return new Thread(ThreadAction::Unmount, cfg.getSetting(Config::kMounted), cfg.pathMods, cfg.getSetting(Config::kGamePath));
 }
 
 bool Core::unmountModReady(const ThreadAction &action)

@@ -15,7 +15,7 @@ class Core : public QObject
 {
     Q_OBJECT
 
-public:        enum MountResult { MountReady, Mounted, MountStarted, MountFailed, OtherMounted };
+public:        enum MountResult { MountReady, Mounted, MountFailed, OtherMounted };
 
                static const wchar_t *regAllowFiles, *regGameVersion; //registry
 
@@ -38,11 +38,11 @@ public slots:  void launch(const bool editor=false, const QString &args=QString(
 
 public:        bool setAllowOrVersion(const bool enable, const bool version=false);
 
-               MountResult mountMod(const QString &modName, const bool startThread=true);
-               bool        unmountMod(const bool startThread=true);
+               MountResult mountModCheck(const QString &modName);
                Thread*     mountModThread(const QString &modName);
+               bool        mountModReady(const ThreadAction &action);
+               bool        unmountModCheck();
                Thread*     unmountModThread();
-               bool        mountModReady  (const ThreadAction &action);
                bool        unmountModReady(const ThreadAction &action);
 
                static QString a2s(const ThreadAction &action);

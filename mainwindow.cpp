@@ -603,11 +603,12 @@ void MainWindow::mountMod()
     {
         const QString &modName = modTable->modNames[modTable->currentRow()];
 
-        if(tryBusy(modName) && core->mountMod(modName, false) == Core::MountReady)
+        if(tryBusy(modName) && core->mountModCheck(modName) == Core::MountReady)
         {
             toggleMountBtn->setEnabled(false);
 
             Thread *thr = core->mountModThread(modName);
+            connect(thr, &Thread::resultReady,   this,     &MainWindow::actionReady);
             connect(thr, &Thread::scanModUpdate, modTable, &ModTable::updateMounted);
             thr->start();
         }
@@ -616,16 +617,9 @@ void MainWindow::mountMod()
     }
 }
 
-void MainWindow::mountModReady(const ThreadAction &action)
-{
-    core->mountModReady(action);
-    modTable->setIdle(action.modName);
-    updateMountState(action.modName);
-}
-
 void MainWindow::unmountMod()
 {
-    if(tryBusy(core->cfg.getSetting(Config::kMounted)) && core->unmountMod(false))
+    if(tryBusy(core->cfg.getSetting(Config::kMounted)) && core->unmountModCheck())
     {
         toggleMountBtn->setEnabled(false);
 
@@ -638,17 +632,11 @@ void MainWindow::unmountMod()
         }
 
         Thread *thr = core->unmountModThread();
+        connect(thr, &Thread::resultReady,   this,     &MainWindow::actionReady);
         connect(thr, &Thread::scanModUpdate, modTable, &ModTable::updateMounted);
         thr->start(modSize, fileCount);
     }
     else updateMountState(core->cfg.getSetting(Config::kMounted));
-}
-
-void MainWindow::unmountModReady(const ThreadAction &action)
-{
-    core->unmountModReady(action);
-    modTable->setIdle(action.modName);
-    updateMountState(action.modName);
 }
 
 void MainWindow::addMod()
@@ -679,19 +667,13 @@ void MainWindow::addMod()
                 showMsg(d::ADDING_X___.arg(modName), Msgr::Busy);
 
                 Thread *thr = new Thread(ThreadAction::Add, modName, core->cfg.pathMods, core->cfg.getSetting(Config::kGamePath));
-                connect(thr, &Thread::resultReady,   this,     &MainWindow::addModReady);
-                connect(thr, &Thread::scanModUpdate, modTable, &ModTable::updateTotal);
+                connect(thr, &Thread::resultReady,   this,     &MainWindow::actionReady);
                 connect(thr, &Thread::addModCreated, modTable, &ModTable::addMod);
+                connect(thr, &Thread::scanModUpdate, modTable, &ModTable::updateTotal);
                 thr->start(src, dst, copyMove.clickedButton() == copyBtn ? Thread::Copy : Thread::Move);
             }
         }
     }
-}
-
-void MainWindow::addModReady(const ThreadAction &action)
-{
-    modTable->setIdle(action.modName);
-    showMsg(Core::a2s(action));
 }
 
 void MainWindow::deleteMod()
@@ -702,24 +684,33 @@ void MainWindow::deleteMod()
 
         if(QMessageBox::warning(this, d::PERM_DELETE_Xq.arg(modName),
                                 d::PERM_DELETE_X_LONGq.arg(modName,
-                                                          /* dynamic_cast<QLabel *>(modList->cellWidget(modList->currentRow(), 1))->text(),
-                                                           dynamic_cast<QLabel *>(modList->cellWidget(modList->currentRow(), 2))->text()),*/
-                                                           "tt", "tt"),
-                                QMessageBox::Yes|QMessageBox::No) == QMessageBox::Yes)
+                                                           modTable->dataItem(modTable->currentRow(), false)->totalData->text(),
+                                                           modTable->dataItem(modTable->currentRow(), true)->totalData->text()),
+                                QMessageBox::Yes|QMessageBox::No) == QMessageBox::Yes
+                && tryBusy(modName))
         {
             showMsg(d::DELETING_X___.arg(modName), Msgr::Busy);
 
             Thread *thr = new Thread(ThreadAction::Delete, modName, core->cfg.pathMods, core->cfg.getSetting(Config::kGamePath));
-            connect(thr, &Thread::resultReady, this, &MainWindow::deleteModReady);
+            connect(thr, &Thread::resultReady,   this,     &MainWindow::actionReady);
+            connect(thr, &Thread::scanModUpdate, modTable, &ModTable::updateTotal);
             thr->start();
         }
     }
 }
 
-void MainWindow::deleteModReady(const ThreadAction &action)
+void MainWindow::actionReady(const ThreadAction &action)
 {
-    // if errors -> rescan mod + popup
-    showMsg(Core::a2s(action));
+    if(action == ThreadAction::Mount || action == ThreadAction::Unmount)
+    {
+        if(action == ThreadAction::Mount) core->mountModReady(action);
+        else core->unmountModReady(action);
+
+        updateMountState(action.modName);
+    }
+    else showMsg(Core::a2s(action));
+
+    modTable->setIdle(action.modName);
 }
 
 void MainWindow::renameModAction()

@@ -75,12 +75,20 @@ bool Launcher::confirmLaunch(const QString &msg)
 
 void Launcher::mountMod()
 {
-    switch(core->mountMod(modName))
+    switch(core->mountModCheck(modName))
     {
-    case Core::Mounted:      launch(); break;
-    case Core::MountStarted: break;
-    case Core::OtherMounted: unmountMod(); break;
-    default:                 if(confirmLaunch(d::X_FAILED.arg(d::MOUNTING)+".")) launch();
+    case Core::Mounted: launch(); break;
+    case Core::MountReady:
+    {
+        Thread *thr = core->mountModThread(modName);
+        connect(thr, &Thread::resultReady, this, &Launcher::mountModReady);
+        thr->start();
+        break;
+    }
+    case Core::MountFailed:
+        if(confirmLaunch(d::X_FAILED.arg(d::MOUNTING)+".")) launch();
+        break;
+    case Core::OtherMounted: unmountMod();
     }
 }
 
@@ -96,7 +104,13 @@ void Launcher::mountModReady(const ThreadAction &action)
 
 void Launcher::unmountMod()
 {
-    if(!core->unmountMod() && confirmLaunch(d::X_FAILED.arg(d::UNMOUNTING)+"."))
+    if(core->unmountModCheck())
+    {
+        Thread *thr = core->unmountModThread();
+        connect(thr, &Thread::resultReady, this, &Launcher::unmountModReady);
+        thr->start();
+    }
+    else if(confirmLaunch(d::X_FAILED.arg(d::UNMOUNTING)+"."))
         launch();
 }
 

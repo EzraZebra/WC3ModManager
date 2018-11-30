@@ -37,7 +37,7 @@ public:  const QString PROCESSING,
          bool filesProcessed() const { return results[Success] || results[Failed] || results[Missing]; }
 
          int  get(const Result &result) const { return results[result]; }
-         void add(const Result &result, const int count=1) { results[result] += count; }
+         void add(const Result &result, const int amount=1) { results[result] += amount; }
 
      // isAborted, isForced
          void abort() { isAborted = true; }
