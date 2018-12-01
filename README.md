@@ -20,7 +20,7 @@ You should be able to use other IDEs and compilers, but I haven't tested.
 
 Please feel free to fork, make pull requests, etc.
 
-_#### Disclaimer
-Warcraft and related IPs are the property of Blizzard Entertainment. WC3 Mod Manager is not affiliated to Blizzard Entertainment in any way.  
+#### _Disclaimer_
+_Warcraft and related IPs are the property of Blizzard Entertainment. WC3 Mod Manager is not affiliated to Blizzard Entertainment in any way.  
 This repository and the binaries compiled from its source include a number of icon files (`.ico`) containing images owned by Blizzard Entertainment.  
 These files are included under the assumption that Fair Use applies. Please let me know if this assumption is erroneous._
