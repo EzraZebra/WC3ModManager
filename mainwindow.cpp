@@ -132,9 +132,9 @@
 
     bool ModTable::tryBusy(const QString &modName)
     {
-        if(modData.find(modName) != modData.end() && !std::get<int(ModData::Busy)>(modData[modName]))
+        if(md::exists(modData, modName) && !std::get<int(md::Busy)>(modData[modName]))
         {
-            std::get<int(ModData::Busy)>(modData[modName]) = true;
+            std::get<int(md::Busy)>(modData[modName]) = true;
             return true;
         }
         else return false;
@@ -144,7 +144,7 @@
     {
         resizeColumnToContents(0);
         resizeColumnToContents(1); // Last column (2) is stretched
-        resizeRowToContents(row);
+        if(row != -1) resizeRowToContents(row);
     }
 
     void ModTable::addMod(const QString &modName, const int row, const bool addData)
@@ -152,9 +152,9 @@
         if(addData)
         {
             modNames.insert(row, modName);
-            modData.insert({ modName, newModT(row, true) }); // Adding mod -> Busy = true
+            modData.insert({ modName, md::newData(row, true) }); // Adding mod -> Busy = true
             for(int i=row+1; i < modNames.length(); ++i) // Renumber mods following added
-                std::get<int(ModData::Row)>(modData[modNames[i]]) = i;
+                md::setRow(modData[modNames[i]], i);
         }
 
         insertRow(row);
@@ -171,12 +171,28 @@
         resizeCR(row);
     }
 
+    void ModTable::deleteMod(const QString &modName)
+    {
+        if(md::exists(modData, modName))
+        {
+            const int row = this->row(modName);
+            modNames.removeAt(row);
+            modData.erase(modName);
+
+            for(int i=row; i < modNames.length(); ++i) // Renumber mods following deleted
+                md::setRow(modData[modNames[i]], i);
+
+            removeRow(row);
+            resizeCR();
+        }
+    }
+
     void ModTable::updateMod(const QString &modName, const QString &modSize, const QString &fileCount, const bool isMounted)
     {
-        const int row = this->row(modName);
-
-        if(row != -1)
+        if(md::exists(modData, modName))
         {
+            const int row = this->row(modName);
+
             bool resize = dataItem(row, false)->updateData(modSize, isMounted);
             resize = dataItem(row, true)->updateData(fileCount, isMounted) || resize;
 
@@ -410,29 +426,26 @@ void MainWindow::updateMountState(const QString &modName)
         connect(toggleMountBtn, &QPushButton::clicked, this, &MainWindow::mountMod);
         connect(toggleMountAc,  &QAction::triggered,   this, &MainWindow::mountMod);
 
-        if(!modName.isEmpty())
+        if(!modName.isEmpty() && md::exists(modTable->modData, modName))
         {
             const int row = modTable->row(modName);
 
-            if(row != -1)
-            {
-                ModNameItem *nameItem  = modTable->nameItem(row);
-                QWidget     *sizeItem  = modTable->cellWidget(row, 1),
-                            *filesItem = modTable->cellWidget(row, 2);
-                nameItem->setStyleSheet(QString());
-                sizeItem->setStyleSheet(QString());
-                filesItem->setStyleSheet(QString());
-                nameItem->setFont(modTable->font());
-                sizeItem->setFont(modTable->font());
-                filesItem->setFont(modTable->font());
+            ModNameItem *nameItem  = modTable->nameItem(row);
+            QWidget     *sizeItem  = modTable->cellWidget(row, 1),
+                        *filesItem = modTable->cellWidget(row, 2);
+            nameItem->setStyleSheet(QString());
+            sizeItem->setStyleSheet(QString());
+            filesItem->setStyleSheet(QString());
+            nameItem->setFont(modTable->font());
+            sizeItem->setFont(modTable->font());
+            filesItem->setFont(modTable->font());
 
-                nameItem->icon->hide();
-                nameItem->setToolTip(QString());
-                sizeItem->setToolTip(QString());
-                filesItem->setToolTip(QString());
+            nameItem->icon->hide();
+            nameItem->setToolTip(QString());
+            sizeItem->setToolTip(QString());
+            filesItem->setToolTip(QString());
 
-                modTable->resizeCR(row);
-            }
+            modTable->resizeCR(row);
         }
     }
     else
@@ -443,9 +456,10 @@ void MainWindow::updateMountState(const QString &modName)
         connect(toggleMountBtn, &QPushButton::clicked, this, &MainWindow::unmountMod);
         connect(toggleMountAc,  &QAction::triggered,   this, &MainWindow::unmountMod);
 
-        const int row = modTable->row(modName.isEmpty() ? core->cfg.getSetting(Config::kMounted) : modName);
-        if(row != -1)
+        if(md::exists(modTable->modData, modName.isEmpty() ? core->cfg.getSetting(Config::kMounted) : modName))
         {
+            const int row = modTable->row(modName.isEmpty() ? core->cfg.getSetting(Config::kMounted) : modName);
+
             ModNameItem *nameItem  = modTable->nameItem(row);
             QWidget     *sizeItem  = modTable->cellWidget(row, 1),
                         *filesItem = modTable->cellWidget(row, 2);
@@ -517,7 +531,7 @@ void MainWindow::refresh(const bool silent)
     updateAllowOrVersion(true);
 }
 
-void MainWindow::modDataReady(const mod_m &modData, const QStringList &modNames)
+void MainWindow::modDataReady(const md::modData &modData, const QStringList &modNames)
 {
     const QString &selectedMod = modTable->modSelected() && modTable->currentRow() < modTable->modNames.length()
                                     ? modTable->modNames[modTable->currentRow()] : QString();
@@ -574,10 +588,10 @@ void MainWindow::modDataReady(const mod_m &modData, const QStringList &modNames)
 
 void MainWindow::scanModDone(const QString &modName)
 {
-    const int row = modTable->row(modName);
-
-    if(row != -1)
+    if(md::exists(modTable->modData, modName))
     {
+        const int row = modTable->row(modName);
+
         modTable->resizeCR(row);
         if(row == modTable->currentRow())
         {
@@ -624,10 +638,10 @@ void MainWindow::unmountMod()
     {
         toggleMountBtn->setEnabled(false);
 
-        const int row = modTable->row(core->cfg.getSetting(Config::kMounted));
         QString modSize, fileCount;
-        if(row != -1)
+        if(md::exists(modTable->modData, core->cfg.getSetting(Config::kMounted)))
         {
+            const int row = modTable->row(core->cfg.getSetting(Config::kMounted));
             modSize = modTable->dataItem(row, false)->mountedData->text();
             fileCount = modTable->dataItem(row, true)->mountedData->text();
         }
@@ -683,19 +697,27 @@ void MainWindow::deleteMod()
     {
         const QString &modName = modTable->modNames[modTable->currentRow()];
 
-        if(QMessageBox::warning(this, d::PERM_DELETE_Xq.arg(modName),
-                                d::PERM_DELETE_X_LONGq.arg(modName,
-                                                           modTable->dataItem(modTable->currentRow(), false)->totalData->text(),
-                                                           modTable->dataItem(modTable->currentRow(), true)->totalData->text()),
+        if(QMessageBox::warning(this, d::PERM_DELETE_Xq.arg(modName), d::PERM_DELETE_X_LONGq.arg(modName,
+                                    modTable->dataItem(modTable->currentRow(), false)->totalData->text(),
+                                    modTable->dataItem(modTable->currentRow(), true)->totalData->text()),
                                 QMessageBox::Yes|QMessageBox::No) == QMessageBox::Yes
                 && tryBusy(modName))
         {
             showMsg(d::DELETING_X___.arg(modName), Msgr::Busy);
 
+            QString modSize, fileCount;
+            if(md::exists(modTable->modData, modName))
+            {
+                const int row = modTable->row(modName);
+                modSize = modTable->dataItem(row, false)->totalData->text();
+                fileCount = modTable->dataItem(row, true)->totalData->text();
+            }
+
             Thread *thr = new Thread(ThreadAction::Delete, modName, core->cfg.pathMods, core->cfg.getSetting(Config::kGamePath));
-            connect(thr, &Thread::resultReady,   this,     &MainWindow::actionReady);
-            connect(thr, &Thread::scanModUpdate, modTable, &ModTable::updateTotal);
-            thr->start();
+            connect(thr, &Thread::resultReady,      this,     &MainWindow::actionReady);
+            connect(thr, &Thread::deleteModDeleted, modTable, &ModTable::deleteMod);
+            connect(thr, &Thread::scanModUpdate,    modTable, &ModTable::updateTotal);
+            thr->start(modSize, fileCount);
         }
     }
 }

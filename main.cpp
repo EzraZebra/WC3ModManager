@@ -11,8 +11,8 @@ int main(int argc, char *argv[])
     QApplication a(argc, argv);
     a.setAttribute(Qt::AA_DisableWindowContextHelpButton);
 
-    qRegisterMetaType<mod_t>("mod_t");
-    qRegisterMetaType<mod_m>("mod_m");
+    qRegisterMetaType<md::data>("md::data");
+    qRegisterMetaType<md::modData>("md::modData");
     qRegisterMetaType<Msgr::Type>("Msgr::Type");
 
     Core core;

@@ -74,29 +74,23 @@ public:       ThreadWorker(ThreadAction &action, bool &paused, const QString &pa
               { confirmWait = waitCond; this->mutex = mutex; }
 
 public slots: void init(const int index=0, const QString &data1=QString(), const QString &data2=QString(),
-                        const QString &args=QString(), const mod_m &modData={});
+                        const QString &args=QString(), const md::modData &modData={});
 
               void forceUnmount();
 
-private:      static QString B2MB(double size);
+private:      void    checkState();
+              QString getMB();
+              void    getData(QString qsModSize, QString qsFileCount);
+              void    mountModIterator(QString relativePath=QString());
+
+              void scanFile(const QFileInfo &fi, const bool subtract=false,  const bool silent=false);
+              void scanPath(const QString &path, const bool subtract=false);
+              void scanMountedModWorker();
 
               ThreadAction::Result processFile(const QString &src, const QString &dst,
                                                const Mode &mode=Move, const bool logBackups=false);
               ThreadAction::Result deleteFile(const QString &path, const QString &stopPath=QString());
               void                 removePath(const QString &path, const QString &stopPath=QString());
-
-              void modDataWorker(const mod_m &modData);
-              void scanFile(const QFileInfo &fi, const bool subtract=false);
-              void scanPath(const QString &path, const bool subtract=false);
-              void scanModWorker();
-              void scanMountedModWorker();
-              void checkState();
-              void mountModIterator(QString relativePath=QString());
-              void mountModWorker();
-              void unmountModWorker(QString modSize=QString(), QString fileCount=QString());
-              void addModWorker(const QString &src, const QString &dst, const Mode &mode);
-              void deleteModWorker();
-              void shortcutWorker(const QString &dst, const QString &args, const QString &iconPath, const int iconIndex);
 
 signals:      void progressUpdate(const QString &msg, const bool error=false);
               void statusUpdate  (const QString &msg);

@@ -17,28 +17,39 @@ class Thread : public ThreadBase
                ThreadAction   action;
                bool paused=false;
 
-public:        Thread(const ThreadAction::Action &thrAction, const QString &modName,
+public:        // Scan, ScanMounted, Mount, Unmount, Delete
+               Thread(const ThreadAction::Action &thrAction, const QString &modName,
                       const QString &pathMods, const QString &pathGame=QString(), Msgr *const msgr=nullptr);
+
+               // Scan, ScanMounted, Mount
                void start() { emit init(); }
- /* Unmount */ void start(const QString &modSize, const QString &fileCount)
+
+               // Unmount, Delete
+               void start(const QString &modSize, const QString &fileCount)
                { emit init(0, modSize, fileCount); }
-     /* Add */ void start(const QString &src, const QString &dst, const Mode &mode)
+
+               // Add
+               void start(const QString &src, const QString &dst, const Mode &mode)
                { emit init(mode, src, dst); }
 
- /* ModData */ Thread(const ThreadAction::Action &thrAction, const QString &pathMods)
+               // ModData
+               Thread(const ThreadAction::Action &thrAction, const QString &pathMods)
                    : Thread(thrAction, QString(), pathMods) {}
-               void start(const mod_m &modData)
+
+               void start(const md::modData &modData)
                { emit init(0, QString(), QString(), QString(), modData); }
 
-/* Shortcut */ Thread(const ThreadAction::Action &thrAction, Msgr *const msgr)
+               // Shortcut
+               Thread(const ThreadAction::Action &thrAction, Msgr *const msgr)
                    : Thread(thrAction, QString(), QString(), QString(), msgr) {}
+
                void start(const QString &dst, const QString &args, const QString &iconPath, const int iconIndex)
                { emit init(iconIndex, dst, iconPath, args); }
 
                ~Thread();
 
 signals:       void init(const int index=0, const QString &data1=QString(), const QString &data2=QString(),
-                         const QString &args=QString(), const mod_m &modData={});
+                         const QString &args=QString(), const md::modData &modData={});
 
 private slots: void abort();
                void pause();

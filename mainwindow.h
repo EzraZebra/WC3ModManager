@@ -44,7 +44,7 @@ class ModTable : public QTableWidget
 
 public:       static const int modItemMrg = 2;
 
-              mod_m       modData;
+              md::modData modData;
               QStringList modNames;
 
               ModTable();
@@ -56,17 +56,18 @@ public:       static const int modItemMrg = 2;
               { return dynamic_cast<ModNameItem *>(cellWidget(row, 0)); }
 
               int row(const QString &modName) const
-              { return modData.find(modName) == modData.end() ? -1 : std::get<int(ModData::Row)>(modData.at(modName)); }
+              { return md::exists(modData, modName) ? std::get<int(md::Row)>(modData.at(modName)) : -1; }
 
               bool tryBusy(const QString &modName);
               void setIdle(const QString &modName)
-              { if(modData.find(modName) != modData.end()) std::get<int(ModData::Busy)>(modData[modName]) = false; }
+              { if(md::exists(modData, modName)) std::get<int(md::Busy)>(modData[modName]) = false; }
 
-              void resizeCR(const int row);
+              void resizeCR(const int row=-1);
               bool modSelected() const { return currentRow() >= 0 && currentRow() < rowCount(); }
 
 private:      void updateMod    (const QString &modName, const QString &modSize, const QString &fileCount, const bool isMounted);
 public slots: void addMod       (const QString &modName, const int row, const bool addData=false);
+              void deleteMod    (const QString &modName);
               void updateTotal  (const QString &modName, const QString &modSize, const QString &fileCount)
               { updateMod(modName, modSize, fileCount, false); }
               void updateMounted(const QString &modName, const QString &modSize, const QString &fileCount)
@@ -112,7 +113,7 @@ private slots: void launchEditor();
                void setVersion(const bool enable){ setAllowOrVersion(enable, true); }
 
                void refresh(const bool silent=false);
-               void modDataReady(const mod_m &modData, const QStringList &modNames);
+               void modDataReady(const md::modData &modData, const QStringList &modNames);
                void scanModDone(const QString &modName);
 
                void mountMod();
