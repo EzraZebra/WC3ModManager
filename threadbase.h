@@ -66,10 +66,10 @@ protected:
 
 signals:   void modDataReady(const md::modData &modData, const QStringList &modNames);
            void scanModUpdate(const QString &modName, const QString &modSize, const QString &fileCount);
-           void scanModReady(const QString &modName);
+           void scanModReady (const QString &modName);
+           void modAdded     (const QString &modName, const int row, const bool addData=true);
+           void modDeleted   (const QString &modName);
            void resultReady(const ThreadAction &action);
-           void addModCreated(const QString &modName, const int row, const bool addData=true);
-           void deleteModDeleted(const QString &modName);
            void shortcutReady();
 };
 

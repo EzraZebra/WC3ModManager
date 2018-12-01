@@ -197,6 +197,7 @@
             resize = dataItem(row, true)->updateData(fileCount, isMounted) || resize;
 
             if(resize) resizeCR(row);
+            if(isRowHidden(row) && (modSize != d::ZERO_MB || fileCount != d::ZERO_FILES)) showRow(row);
         }
     }
 
@@ -683,7 +684,7 @@ void MainWindow::addMod()
 
                 Thread *thr = new Thread(ThreadAction::Add, modName, core->cfg.pathMods, core->cfg.getSetting(Config::kGamePath));
                 connect(thr, &Thread::resultReady,   this,     &MainWindow::actionReady);
-                connect(thr, &Thread::addModCreated, modTable, &ModTable::addMod);
+                connect(thr, &Thread::modAdded, modTable, &ModTable::addMod);
                 connect(thr, &Thread::scanModUpdate, modTable, &ModTable::updateTotal);
                 thr->start(src, dst, copyMove.clickedButton() == copyBtn ? Thread::Copy : Thread::Move);
             }
@@ -715,7 +716,7 @@ void MainWindow::deleteMod()
 
             Thread *thr = new Thread(ThreadAction::Delete, modName, core->cfg.pathMods, core->cfg.getSetting(Config::kGamePath));
             connect(thr, &Thread::resultReady,      this,     &MainWindow::actionReady);
-            connect(thr, &Thread::deleteModDeleted, modTable, &ModTable::deleteMod);
+            connect(thr, &Thread::modDeleted, modTable, &ModTable::deleteMod);
             connect(thr, &Thread::scanModUpdate,    modTable, &ModTable::updateTotal);
             thr->start(modSize, fileCount);
         }

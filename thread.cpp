@@ -345,7 +345,7 @@
                         if(row != -1)
                         {
                             created = true;
-                            emit addModCreated(action.modName, row);
+                            emit modAdded(action.modName, row);
                             QThread::msleep(10); // make sure signal arrives first
                         }
                     }
@@ -362,31 +362,27 @@
      // DELETE
         case ThreadAction::Delete:
         {
-            qDebug() << "tw data1" << data1;
-            qDebug() << "tw data2" << data2;
             if(!data1.isEmpty() && !data2.isEmpty()) getData(data1, data2); // modSize, fileCount
-            qDebug() << "tw modSize" << modSize;
-            qDebug() << "tw fileCount" << fileCount;
 
             const QString &pathMod = pathMods+"/"+action.modName;
 
-           for(QDirIterator itMod(pathMod, QDir::NoDotAndDotDot|QDir::Files|QDir::Hidden|QDir::System,  QDirIterator::Subdirectories);
-               !action.aborted() && itMod.hasNext(); checkState())
+            for(QDirIterator itMod(pathMod, QDir::NoDotAndDotDot|QDir::Files|QDir::Hidden|QDir::System,  QDirIterator::Subdirectories);
+                !action.aborted() && itMod.hasNext(); checkState())
             {
                 itMod.next();
                 const QString &filePath = itMod.filePath();
 
                 emit progressUpdate(filePath);
 
-                scanFile(filePath, true, true);
+                scanFile(filePath, true, true); // Silently remove file from data
 
                 ThreadAction::Result result = deleteFile(filePath, pathMods);
                 action.add(result);
 
                 if(result != ThreadAction::Success && (itMod.fileInfo().isSymLink() || itMod.fileInfo().exists()))
-                    scanFile(filePath, false, true); // Add file back to data if delete failed
+                    scanFile(filePath, false, true); // Silently add file back to data if it still exists
 
-                emit scanModUpdate(action.modName, getMB(), d::X_FILES.arg(fileCount));
+                emit scanModUpdate(action.modName, getMB(), d::X_FILES.arg(fileCount)); // Data is up to date
             }
 
             if(QFileInfo().exists(pathMod) && !QDir().rmdir(pathMod))
@@ -394,7 +390,7 @@
                 action.add(ThreadAction::Failed);
                 emit progressUpdate(d::FAILED_TO_X.arg(d::lDELETE_X).arg(d::lFOLDER)+": "+pathMod, true);
             }
-            else emit deleteModDeleted(action.modName);
+            else emit modDeleted(action.modName);
 
             emit resultReady(action);
 
@@ -526,12 +522,27 @@
         qint64 size = 0;
         if(fi.isSymLink() && fi.size() == QFileInfo(fi.symLinkTarget()).size())
         {
-            QFile file(fi.filePath());
+            const QString &filePath = fi.filePath();
+
+            QFile file(filePath);
             if(file.exists() && file.open(QIODevice::ReadOnly))
                 size = file.size();
             file.close();
+
+            if(size == 0)
+            {
+                QString tmpPath = filePath+".wmmTmp";
+                for(int i=2; QFileInfo().exists(tmpPath); ++i)
+                    tmpPath = filePath+".wmmTmp"+QString::number(i);
+
+                if(processFile(filePath, tmpPath, Mode::Copy) == ThreadAction::Success)
+                {
+                    size = QFileInfo(tmpPath).size();
+                    deleteFile(tmpPath);
+                }
+            }
         }
-        if(size == 0) size = fi.size();
+        else size = fi.size();
 
         modSize += (subtract ? -1 : 1) * size;
         fileCount += subtract ? -1 : 1;
@@ -712,9 +723,9 @@
                 if(action == ThreadAction::Unmount)
                     connect(progressDiag, &ProgressDiag::unmountForced, worker, &ThreadWorker::forceUnmount);
                 else if(action == ThreadAction::Add)
-                    connect(worker, &ThreadWorker::addModCreated, this, &Thread::addModCreated);
+                    connect(worker, &ThreadWorker::modAdded, this, &Thread::modAdded);
                 else if(action == ThreadAction::Delete)
-                    connect(worker, &ThreadWorker::deleteModDeleted, this, &Thread::deleteModDeleted);
+                    connect(worker, &ThreadWorker::modDeleted, this, &Thread::modDeleted);
 
                 progressDiag->show();
             }
