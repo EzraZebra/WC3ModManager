@@ -194,12 +194,19 @@
         {
             const int row = this->row(modName);
 
-            setSize(modName, size);
+            if(isMounted) mountedSize = size;
+            else setSize(modName, size);
+
             bool resize = dataItem(row, false)->updateData(modSize, isMounted);
             resize = dataItem(row, true)->updateData(fileCount, isMounted) || resize;
 
+            if(isRowHidden(row) && (modSize != d::ZERO_MB || fileCount != d::ZERO_FILES))
+            {
+                showRow(row);
+                resize = true;
+            }
+
             if(resize) resizeCR(row);
-            if(isRowHidden(row) && (modSize != d::ZERO_MB || fileCount != d::ZERO_FILES)) showRow(row);
         }
     }
 
@@ -645,7 +652,7 @@ void MainWindow::unmountMod()
         QString fileCount;
         if(md::exists(modTable->modData, core->cfg.getSetting(Config::kMounted)))
         {
-            modSize = md::size(modTable->modData[core->cfg.getSetting(Config::kMounted)]);
+            modSize = modTable->mountedSize;
             fileCount = modTable->dataItem(modTable->row(core->cfg.getSetting(Config::kMounted)), true)->mountedData->text();
         }
 
@@ -713,7 +720,7 @@ void MainWindow::deleteMod()
             if(md::exists(modTable->modData, modName))
             {
                 modSize = md::size(modTable->modData[modName]);
-                fileCount = modTable->dataItem(modTable->row(modName), true)->mountedData->text();
+                fileCount = modTable->dataItem(modTable->row(modName), true)->totalData->text();
             }
 
             Thread *thr = new Thread(ThreadAction::Delete, modName, core->cfg.pathMods, core->cfg.getSetting(Config::kGamePath));

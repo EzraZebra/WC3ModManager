@@ -192,7 +192,10 @@
         }
 
      // SCAN
-        case ThreadAction::Scan: scanPath(pathMods+"/"+action.modName); break;
+        case ThreadAction::Scan:
+            scanPath(pathMods+"/"+action.modName);
+            emit scanModReady(action.modName);
+            break;
 
      // SCAN MOUNTED
         case ThreadAction::ScanMounted:
@@ -200,11 +203,12 @@
             std::ifstream txtReader(pathOutFiles);
             for(std::string line; std::getline(txtReader, line); ) if(line != "")
             {
-                const QFileInfo &fiLine(QString::fromStdString(line)); // meow
-                if(fiLine.isSymLink() && fiLine.exists())
+                QFileInfo fi(QString::fromStdString(line));
+                if(fi.isSymLink() && fi.exists())
                 {
-                    QFileInfo fiLink(fiLine.symLinkTarget());
-                    if(fiLink.isSymLink() || fiLink.exists()) scanPath(fiLink.absoluteFilePath());
+                    const QString &linkTrgt = fi.symLinkTarget();
+                    fi = QFileInfo(linkTrgt);
+                    if(fi.isSymLink() || fi.exists()) scanPath(linkTrgt);
                 }
             }
 
@@ -548,8 +552,6 @@
         if(itrFi.isSymLink() || !itrFi.isDir()) scanFile(itrFi, subtract);
         else for(QDirIterator pathItr(path, QDir::NoDotAndDotDot|QDir::Files|QDir::Hidden|QDir::System, QDirIterator::Subdirectories);
                  pathItr.hasNext(); scanFile(pathItr.fileInfo(), subtract)) pathItr.next();
-
-        emit scanModReady(action.modName);
     }
 
     ThreadAction::Result ThreadWorker::processFile(const QString &src, const QString &dst, const Mode &mode, const bool logBackups)

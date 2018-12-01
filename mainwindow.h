@@ -15,6 +15,8 @@ class QPushButton;
 class QLabel;
 class QTableWidgetItem;
 
+#include <QDebug>
+
 class ModNameItem : public QFrame
 {
     Q_OBJECT
@@ -46,6 +48,7 @@ public:       static const int modItemMrg = 2;
 
               md::modData modData;
               QStringList modNames;
+              qint64 mountedSize = 0;
 
               ModTable();
 
