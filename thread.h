@@ -25,8 +25,8 @@ public:        // Scan, ScanMounted, Mount, Unmount, Delete
                void start() { emit init(); }
 
                // Unmount, Delete
-               void start(const QString &modSize, const QString &fileCount)
-               { emit init(0, modSize, fileCount); }
+               void start(const qint64 size, const QString &fileCount)
+               { emit init(size, fileCount); }
 
                // Add
                void start(const QString &src, const QString &dst, const Mode &mode)
@@ -48,7 +48,7 @@ public:        // Scan, ScanMounted, Mount, Unmount, Delete
 
                ~Thread();
 
-signals:       void init(const int index=0, const QString &data1=QString(), const QString &data2=QString(),
+signals:       void init(const qint64 index=0, const QString &data1=QString(), const QString &data2=QString(),
                          const QString &args=QString(), const md::modData &modData={});
 
 private slots: void abort();

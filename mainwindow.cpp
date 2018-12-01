@@ -132,7 +132,7 @@
 
     bool ModTable::tryBusy(const QString &modName)
     {
-        if(md::exists(modData, modName) && !std::get<int(md::Busy)>(modData[modName]))
+        if(md::exists(modData, modName) && !md::busy(modData[modName]))
         {
             std::get<int(md::Busy)>(modData[modName]) = true;
             return true;
@@ -152,7 +152,7 @@
         if(addData)
         {
             modNames.insert(row, modName);
-            modData.insert({ modName, md::newData(row, true) }); // Adding mod -> Busy = true
+            modData.insert({ modName, md::newData(row) }); // Adding mod -> Busy = true
             for(int i=row+1; i < modNames.length(); ++i) // Renumber mods following added
                 md::setRow(modData[modNames[i]], i);
         }
@@ -187,12 +187,14 @@
         }
     }
 
-    void ModTable::updateMod(const QString &modName, const QString &modSize, const QString &fileCount, const bool isMounted)
+    void ModTable::updateMod(const QString &modName, const QString &modSize, const QString &fileCount,
+                             const qint64 size, const bool isMounted)
     {
         if(md::exists(modData, modName))
         {
             const int row = this->row(modName);
 
+            setSize(modName, size);
             bool resize = dataItem(row, false)->updateData(modSize, isMounted);
             resize = dataItem(row, true)->updateData(fileCount, isMounted) || resize;
 
@@ -639,12 +641,12 @@ void MainWindow::unmountMod()
     {
         toggleMountBtn->setEnabled(false);
 
-        QString modSize, fileCount;
+        qint64 modSize = 0;
+        QString fileCount;
         if(md::exists(modTable->modData, core->cfg.getSetting(Config::kMounted)))
         {
-            const int row = modTable->row(core->cfg.getSetting(Config::kMounted));
-            modSize = modTable->dataItem(row, false)->mountedData->text();
-            fileCount = modTable->dataItem(row, true)->mountedData->text();
+            modSize = md::size(modTable->modData[core->cfg.getSetting(Config::kMounted)]);
+            fileCount = modTable->dataItem(modTable->row(core->cfg.getSetting(Config::kMounted)), true)->mountedData->text();
         }
 
         Thread *thr = core->unmountModThread();
@@ -706,18 +708,18 @@ void MainWindow::deleteMod()
         {
             showMsg(d::DELETING_X___.arg(modName), Msgr::Busy);
 
-            QString modSize, fileCount;
+            qint64 modSize = 0;
+            QString fileCount;
             if(md::exists(modTable->modData, modName))
             {
-                const int row = modTable->row(modName);
-                modSize = modTable->dataItem(row, false)->totalData->text();
-                fileCount = modTable->dataItem(row, true)->totalData->text();
+                modSize = md::size(modTable->modData[modName]);
+                fileCount = modTable->dataItem(modTable->row(modName), true)->mountedData->text();
             }
 
             Thread *thr = new Thread(ThreadAction::Delete, modName, core->cfg.pathMods, core->cfg.getSetting(Config::kGamePath));
-            connect(thr, &Thread::resultReady,      this,     &MainWindow::actionReady);
-            connect(thr, &Thread::modDeleted, modTable, &ModTable::deleteMod);
-            connect(thr, &Thread::scanModUpdate,    modTable, &ModTable::updateTotal);
+            connect(thr, &Thread::resultReady,   this,     &MainWindow::actionReady);
+            connect(thr, &Thread::modDeleted,    modTable, &ModTable::deleteMod);
+            connect(thr, &Thread::scanModUpdate, modTable, &ModTable::updateTotal);
             thr->start(modSize, fileCount);
         }
     }
@@ -806,14 +808,10 @@ void MainWindow::openFolder(const QString &path, const QString &name, QString lN
 }
 
 void MainWindow::openGameFolder()
-{
-    openFolder(core->cfg.getSetting(Config::kGamePath), d::GAME, d::lGAME);
-}
+{ openFolder(core->cfg.getSetting(Config::kGamePath), d::GAME, d::lGAME); }
 
 void MainWindow::openModsFolder()
-{
-    openFolder(core->cfg.pathMods, d::MODS, d::lMODS);
-}
+{ openFolder(core->cfg.pathMods, d::MODS, d::lMODS); }
 
 void MainWindow::openModFolder()
 {

@@ -3,15 +3,6 @@
 
 #include <QIcon>
 
-//std QString hash template
-namespace std {
-template<> struct hash<QString> {
-    size_t operator()(const QString& s) const {
-        return qHash(s);
-    }
-};
-}
-
 namespace u {
 inline QIcon largestIcon(const QIcon &icon)
 {

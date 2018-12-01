@@ -162,7 +162,7 @@
 /********************************************************************/
     const QString ThreadWorker::extBackup = QStringLiteral(u".wmmbackup");
 
-    void ThreadWorker::init(const int index, const QString &data1, const QString &data2,
+    void ThreadWorker::init(const qint64 index, const QString &data1, const QString &data2,
                             const QString &args, const md::modData &modData)
     {
 
@@ -183,14 +183,7 @@
 
                 modNames << modName;
 
-                md::data mod;
-                if(md::exists(modData, modName))
-                {
-                    mod = modData.at(modName);
-                    md::setRow(mod, i);
-                }
-                else mod = md::newData(i);
-                newData.insert({ modName, mod });
+                newData.insert({ modName, md::newData(i, md::exists(modData, modName) ? md::busy(modData.at(modName)) : false )});
             }
 
             emit modDataReady(newData, modNames);
@@ -236,7 +229,8 @@
      // UNMOUNT
         case ThreadAction::Unmount:
         {
-            if(!data1.isEmpty() && !data2.isEmpty()) getData(data1, data2); // modSize, fileCount
+            if(index > 0) modSize = index;
+            if(!data1.isEmpty()) getFileCount(data1);
 
             std::string newOutFiles = "";
             std::ifstream txtReader(pathOutFiles);
@@ -362,7 +356,8 @@
      // DELETE
         case ThreadAction::Delete:
         {
-            if(!data1.isEmpty() && !data2.isEmpty()) getData(data1, data2); // modSize, fileCount
+            if(index > 0) modSize = index;
+            if(!data1.isEmpty()) getFileCount(data1);
 
             const QString &pathMod = pathMods+"/"+action.modName;
 
@@ -382,7 +377,7 @@
                 if(result != ThreadAction::Success && (itMod.fileInfo().isSymLink() || itMod.fileInfo().exists()))
                     scanFile(filePath, false, true); // Silently add file back to data if it still exists
 
-                emit scanModUpdate(action.modName, getMB(), d::X_FILES.arg(fileCount)); // Data is up to date
+                emit scanModUpdate(action.modName, getMB(), d::X_FILES.arg(fileCount), modSize); // Data is up to date
             }
 
             if(QFileInfo().exists(pathMod) && !QDir().rmdir(pathMod))
@@ -411,7 +406,7 @@
                 };
             if(!args.isEmpty())     cmds << QString("$s.Arguments='%0';").arg(args);
             if(!data2.isEmpty()) cmds << QString("$s.IconLocation='%0, %1';")
-                                                .arg(QDir::toNativeSeparators(data2), index);
+                                                .arg(QDir::toNativeSeparators(data2), int(index));
             cmds << QString("$s.Save()");
 
             QProcess powershell(this);
@@ -456,28 +451,23 @@
 
     QString ThreadWorker::getMB()
     {
-        QString qsModSize = "0.00";
         if(modSize > 0)
         {
             double sizeMB = double(modSize)/1024/1024;
-            if(sizeMB < 0.01) qsModSize = "< 0.01";
+            if(sizeMB < 0.01) return d::ALMOST_ZERO_MB;
             else
             {
-                qsModSize = QString::number(round(sizeMB*100)/100);
+                QString qsModSize = QString::number(round(sizeMB*100)/100);
                 if(qsModSize.lastIndexOf('.') == qsModSize.length()-2) qsModSize += "0";
                 else if(qsModSize.lastIndexOf('.') == -1) qsModSize += ".00";
+                return d::X_MB.arg(qsModSize);
             }
         }
-
-        return d::X_MB.arg(qsModSize);
+        else return d::ZERO_MB;
     }
 
-    void ThreadWorker::getData(QString qsModSize, QString qsFileCount)
+    void ThreadWorker::getFileCount(QString qsFileCount)
     {
-        qsModSize.truncate(qsModSize.lastIndexOf(d::X_MB.arg(QString())));
-        modSize = qint64(qsModSize.toDouble()-0.01)*1024*1024; // Due to rounding modSize can be <.01MB off
-        if(modSize < 0) modSize = 0;                           // -> subtract .01MB to make sure 0 is reached
-
         qsFileCount.truncate(qsFileCount.lastIndexOf(d::X_FILES.arg(QString())));
         fileCount = qsFileCount.toInt();
     }
@@ -517,7 +507,7 @@
         }
     }
 
-    void ThreadWorker::scanFile(const QFileInfo &fi, const bool subtract, const bool silent)
+    qint64 ThreadWorker::scanFile(const QFileInfo &fi, const bool subtract, const bool silent)
     {
         qint64 size = 0;
         if(fi.isSymLink() && fi.size() == QFileInfo(fi.symLinkTarget()).size())
@@ -547,7 +537,9 @@
         modSize += (subtract ? -1 : 1) * size;
         fileCount += subtract ? -1 : 1;
 
-        if(!silent) emit scanModUpdate(action.modName, getMB(), d::X_FILES.arg(fileCount));
+        if(!silent) emit scanModUpdate(action.modName, getMB(), d::X_FILES.arg(fileCount), modSize);
+
+        return size;
     }
 
     void ThreadWorker::scanPath(const QString &path, const bool subtract)

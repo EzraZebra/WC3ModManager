@@ -58,7 +58,8 @@ HEADERS += \
     mainwindow.h \
     core.h \
     _msgr.h \
-    _moddata.h
+    _moddata.h \
+    _uo_map_qs.h
 
 RESOURCES += \
     icons.qrc \

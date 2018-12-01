@@ -1,10 +1,9 @@
 #ifndef CONFIG_H
 #define CONFIG_H
 
-#include "_utils.h" // QString hash template (needed for unordered_map<QString, QString>)
+#include "_uo_map_qs.h"
 #include <QCoreApplication>
 
-#include <unordered_map>
 #include <windef.h>  // winbase.h needs to be
 #include <winbase.h> // preceded by windef.h
 #include <apisetcconv.h>

@@ -65,7 +65,7 @@ protected:
            ThreadBase() : QObject() {}
 
 signals:   void modDataReady(const md::modData &modData, const QStringList &modNames);
-           void scanModUpdate(const QString &modName, const QString &modSize, const QString &fileCount);
+           void scanModUpdate(const QString &modName, const QString &modSize, const QString &fileCount, const qint64 size);
            void scanModReady (const QString &modName);
            void modAdded     (const QString &modName, const int row, const bool addData=true);
            void modDeleted   (const QString &modName);

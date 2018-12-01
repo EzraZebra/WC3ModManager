@@ -57,6 +57,8 @@ public:       static const int modItemMrg = 2;
 
               int row(const QString &modName) const
               { return md::exists(modData, modName) ? std::get<int(md::Row)>(modData.at(modName)) : -1; }
+              void setSize(const QString &modName, const qint64 size)
+              { std::get<int(md::Size)>(modData[modName]) = size; }
 
               bool tryBusy(const QString &modName);
               void setIdle(const QString &modName)
@@ -65,13 +67,14 @@ public:       static const int modItemMrg = 2;
               void resizeCR(const int row=-1);
               bool modSelected() const { return currentRow() >= 0 && currentRow() < rowCount(); }
 
-private:      void updateMod    (const QString &modName, const QString &modSize, const QString &fileCount, const bool isMounted);
+private:      void updateMod    (const QString &modName, const QString &modSize, const QString &fileCount,
+                                 const qint64 size, const bool isMounted);
 public slots: void addMod       (const QString &modName, const int row, const bool addData=false);
               void deleteMod    (const QString &modName);
-              void updateTotal  (const QString &modName, const QString &modSize, const QString &fileCount)
-              { updateMod(modName, modSize, fileCount, false); }
-              void updateMounted(const QString &modName, const QString &modSize, const QString &fileCount)
-              { updateMod(modName, modSize, fileCount, true); }
+              void updateTotal  (const QString &modName, const QString &modSize, const QString &fileCount, const qint64 size)
+              { updateMod(modName, modSize, fileCount, size, false); }
+              void updateMounted(const QString &modName, const QString &modSize, const QString &fileCount, const qint64 size)
+              { updateMod(modName, modSize, fileCount, size, true); }
 };
 
 class MainWindow : public QMainWindow

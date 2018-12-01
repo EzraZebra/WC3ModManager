@@ -1,8 +1,7 @@
 #ifndef DIC_H
 #define DIC_H
 
-#include "_utils.h"
-#include <unordered_map>
+#include "_uo_map_qs.h"
 
 //****************************************************************************
 //**    LEGEND      **********************************************************
@@ -156,6 +155,7 @@ static const QString
     X_ABORTED       = X_X.arg("%0", lABORTED),
     INVALID_ACTION_ = INVALID_X.arg(QStringLiteral(u"action.")),
     ZERO_MB         = X_MB.arg("0.00"),
+    ALMOST_ZERO_MB  = X_MB.arg("< 0.01"),
     ZERO_FILES      = X_FILES.arg("0"),
     X_BUSY          = QStringLiteral(u"%0 is busy. Try again later."),
 

@@ -73,19 +73,19 @@ public:       ThreadWorker(ThreadAction &action, bool &paused, const QString &pa
               void setWaitConditionEx(QWaitCondition *waitCond, QMutex *mutex)
               { confirmWait = waitCond; this->mutex = mutex; }
 
-public slots: void init(const int index=0, const QString &data1=QString(), const QString &data2=QString(),
+public slots: void init(const qint64 index=0, const QString &data1=QString(), const QString &data2=QString(),
                         const QString &args=QString(), const md::modData &modData={});
 
               void forceUnmount();
 
 private:      void    checkState();
               QString getMB();
-              void    getData(QString qsModSize, QString qsFileCount);
+              void    getFileCount(QString qsFileCount);
               void    mountModIterator(QString relativePath=QString());
 
-              void scanFile(const QFileInfo &fi, const bool subtract=false,  const bool silent=false);
-              void scanPath(const QString &path, const bool subtract=false);
-              void scanMountedModWorker();
+              qint64 scanFile(const QFileInfo &fi, const bool subtract=false,  const bool silent=false);
+              void   scanPath(const QString &path, const bool subtract=false);
+              void   scanMountedModWorker();
 
               ThreadAction::Result processFile(const QString &src, const QString &dst,
                                                const Mode &mode=Move, const bool logBackups=false);
