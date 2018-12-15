@@ -23,7 +23,7 @@ class ProgressDiag : public QDialog
 
                QLabel           *statusLbl, *infoLbl;
                QDialogButtonBox *buttonBox;
-               QPushButton      *forceBtn = nullptr;
+               //QPushButton      *forceBtn = nullptr;
                QPlainTextEdit   *errorTxt = nullptr;
 
                QWaitCondition *confirmWait;
@@ -33,23 +33,25 @@ class ProgressDiag : public QDialog
 
 public:        ProgressDiag(QWidget *parent, const QString &status, QWaitCondition *confirmWait);
 
+               bool errors() const { return errorTxt; }
                void disableAbort() { doAbort = false; }
 
-               void showResult(const bool enableForce);
+               void showResult(/* OBSOLETE - const bool enableForce */);
 public slots:  void showProgress(const QString &msg, const bool error=false);
                void appendStatus(const QString &msg);
 
 private slots: void reject();
-               void forceUnmount();
+               //void forceUnmount();
 signals:       void aborted();
                void interrupted();
-               void unmountForced();
+               //void unmountForced();
 };
 
 class ThreadWorker : public ThreadBase
 {
     Q_OBJECT
 
+              enum Mode { Move, Copy, Link, Delete };
               static const QString extBackup;
 
               const QString     pathMods, pathGame;
@@ -76,7 +78,7 @@ public:       ThreadWorker(ThreadAction &action, bool &paused, const QString &pa
 public slots: void init(const qint64 index=0, const QString &data1=QString(), const QString &data2=QString(),
                         const QString &args=QString(), const md::modData &modData={});
 
-              void forceUnmount();
+              //void forceUnmount();
 
 private:      void    checkState();
               QString getMB();
@@ -85,12 +87,11 @@ private:      void    checkState();
 
               qint64 scanFile(const QFileInfo &fi, const bool subtract=false,  const bool silent=false);
               void   scanPath(const QString &path, const bool subtract=false);
-              void   scanMountedModWorker();
 
               ThreadAction::Result processFile(const QString &src, const QString &dst,
                                                const Mode &mode=Move, const bool logBackups=false);
-              ThreadAction::Result deleteFile(const QString &path, const QString &stopPath=QString());
-              void                 removePath(const QString &path, const QString &stopPath=QString());
+              bool backupFile(const QString &src, const bool logBackups=false, QString dstMarked=QString());
+              void removePath(const QString &path, const QString &stopPath=QString());
 
 signals:      void progressUpdate(const QString &msg, const bool error=false);
               void statusUpdate  (const QString &msg);

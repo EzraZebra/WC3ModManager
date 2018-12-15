@@ -35,31 +35,31 @@ RC_ICONS +=  \
     icons/worldedit_mod.ico
 
 SOURCES += \
-    config.cpp \
     main.cpp \
-    settings.cpp \
-    thread.cpp \
-    shortcuts.cpp \
-    core.cpp \
-    launcher.cpp \
-    mainwindow.cpp
+    mainwindow.cpp \
+    dg_settings.cpp \
+    dg_shortcuts.cpp \
+    main_launcher.cpp \
+    main_core.cpp \
+    config.cpp \
+    thread.cpp
 
 HEADERS += \
-    config.h \
-    settings.h \
-    thread.h \
-    shortcuts.h \
-    shortcuts_pvt.h \
-    thread_pvt.h \
-    threadbase.h \
     _dic.h \
     _utils.h \
-    launcher.h \
     mainwindow.h \
-    core.h \
     _msgr.h \
     _moddata.h \
-    _uo_map_qs.h
+    _uo_map_qs.h \
+    dg_settings.h \
+    dg_shortcuts.h \
+    dg_shortcuts_pvt.h \
+    main_launcher.h \
+    main_core.h \
+    config.h \
+    thread.h \
+    thread_pvt.h \
+    threadbase.h
 
 RESOURCES += \
     icons.qrc \

@@ -53,7 +53,7 @@ static const QString
     EXPANSION   = QStringLiteral(u"Expansion"),
     WE          = QStringLiteral(u"World Editor"),
 
-// GENERAL NOUNS
+// GENERAL
     EXTRAc  = QStringLiteral(u"Extra:"),
     RESULTc = QStringLiteral(u"Result:"),
     TOTALc_ = QStringLiteral(u"Total: "),
@@ -73,12 +73,15 @@ static const QString
     VERSIONc        = QStringLiteral(u"Version:"),
     INFO            = QStringLiteral(u"Information"),
     X_MB            = QStringLiteral(u"%0 MB"),
+    ZERO_MB         = X_MB.arg("0.00"),
+    ALMOST_ZERO_MB  = X_MB.arg("< 0.01"),
     SIZE            = QStringLiteral(u"Size"),
     FILES           = QStringLiteral(u"Files"),
     lFILES          = QStringLiteral(u"files"),
     lFILE           = QStringLiteral(u"file"),
     lFILEc_X        = QStringLiteral(u"%0: %1").arg(lFILE, "%0"),
-    X_FILES         = QStringLiteral(u"%0 files"),
+    X_FILES         = QStringLiteral(u"%0 %1").arg("%0", lFILES),
+    ZERO_FILES      = X_FILES.arg("0"),
     lFILENAME       = QStringLiteral(u"filename"),
     lSYMLINK        = QStringLiteral(u"symbolic link"),
     SHORTCUT        = QStringLiteral(u"Shortcut"),
@@ -89,8 +92,9 @@ static const QString
     X_SETTING       = QStringLiteral(u"%0 setting"),
     lICON           = QStringLiteral(u"icon"),
     ICON            = QStringLiteral(u"Icon"),
+    lUNKNOWN        = QStringLiteral(u"unknown"),
 
-// GENERAL VERBS
+// GENERAL ACTIONS
     OPEN_X              = QStringLiteral(u"Open %0"),
     lOPEN_X             = QStringLiteral(u"open %0"),
     OPENING_X_FOLDER___ = QStringLiteral(u"Opening %0...").arg(X_FOLDER),
@@ -105,6 +109,7 @@ static const QString
     lSET                = QStringLiteral(u"set"),
     SELECT              = QStringLiteral(u"Select"),
     lSELECTED           = QStringLiteral(u"selected"),
+    PROCESSING      = QStringLiteral(u"Processing"),
 
 //RESULT - SUCCESS
     READY_              = QStringLiteral(u"Ready."),
@@ -130,6 +135,7 @@ static const QString
     NO_FILES_TO_X   = NO_X.arg(QStringLiteral(u"%0 to %1")).arg(lFILES),
     X_NOT_FOUND     = QStringLiteral(u"%0 not found"),
     SKIPPING_FILE_X = QStringLiteral(u"--> Skipping %0").arg(lFILEc_X),
+    FILE_NO_ICONS_                = QStringLiteral(u"That %0 contains no icons.").arg(lFILE),
 
     NO_MOD_X_        = QStringLiteral(u"%0.").arg(NO_X_X).arg(lMOD),
     MOD_EXISTS_      = QStringLiteral(u"A %0 with that name %1.").arg(lMOD, lEXISTS),
@@ -143,22 +149,12 @@ static const QString
     FAILED_TO_GET_X_              = FAILED_TO_X_.arg(QStringLiteral(u"get %0")),
     lFAILED                       = QStringLiteral(u"failed"),
     X_FAILED                      = X_X.arg("%0", lFAILED),
-    FILE_NO_ICONS_                = QStringLiteral(u"That %0 contains no icons.").arg(lFILE),
+    lFINISHED_WITH_ERRORS         = QStringLiteral(u"finished with errors."),
 
     PLS_REFRESH_ = QStringLiteral(u"Please refresh."),
     CHARACTERS_NOT_ALLOWED = QStringLiteral(u"The following characters aren't allowed:\n< > : \" / \\ | ? *"),
 
-// THREAD ACTIONS
-    PROCESSING      = QStringLiteral(u"Processing"),
-    ABORT           = QStringLiteral(u"Abort"),
-    lABORTED        = QStringLiteral(u"aborted"),
-    X_ABORTED       = X_X.arg("%0", lABORTED),
-    INVALID_ACTION_ = INVALID_X.arg(QStringLiteral(u"action.")),
-    ZERO_MB         = X_MB.arg("0.00"),
-    ALMOST_ZERO_MB  = X_MB.arg("< 0.01"),
-    ZERO_FILES      = X_FILES.arg("0"),
-    X_BUSY          = QStringLiteral(u"%0 is busy. Try again later."),
-
+// ACTIONS
     // SCAN
     SCANNING        = QStringLiteral(u"Scanning"),
     SCANNING_X___   = QStringLiteral(u"%0 %1...").arg(SCANNING, "%0"),
@@ -182,6 +178,9 @@ static const QString
     UNMOUNTING_X___         = QStringLiteral(u"%0 %1...").arg(UNMOUNTING, "%0"),
     UNMOUNT                 = QStringLiteral(u"Unmount"),
     lUNMOUNT                = QStringLiteral(u"unmount"),
+    X_NOT_MOUNTED__X        = QStringLiteral(u"%0 is not %1. %2").arg("%0", lMOUNTED, "%1"),
+    NOTHING_UNMOUNT_        = QStringLiteral(u"Nothing to %0.").arg(lUNMOUNT),
+    lUNKNOWN_MOD            = QStringLiteral(u"%0 %1").arg(lUNKNOWN, lMOD),
 
     NOT_A_SYMLINKc_X        = QStringLiteral(u"Not a %0: %1").arg(lSYMLINK, "%0"),
     lRESTORING_BACKUPS___   = QStringLiteral(u"restoring backups..."),
@@ -213,15 +212,21 @@ static const QString
     CREATE_uSHORTCUTS    = CREATE_X.arg(QStringLiteral(u"Shortcuts")),
     SHORTCUT_CREATED_    = SHORTCUT_X.arg(QStringLiteral(u"created.")),
 
-// MOD ACTIONS
     // LAUNCHING
     lARGUMENTS              = QStringLiteral(u"arguments"),
-    PROCESSING_ARGUMENTS___ = QStringLiteral(u"%0 %1...").arg(PROCESSING, lARGUMENTS),
+    PROCESSING_ARGUMENTS___ = QStringLiteral(u"%0...").arg(X_X).arg(PROCESSING, lARGUMENTS),
 
     // RENAME
     RENAME          = QStringLiteral(u"Rename"),
-    lRENAME_MOD     = QStringLiteral(u"rename %0").arg(lMOD),
+    lRENAME         = QStringLiteral(u"rename"),
     X_RENAMED_X_    = QStringLiteral(u"%0 renamed to %1."),
+
+    ABORT           = QStringLiteral(u"Abort"),
+    lABORTED        = QStringLiteral(u"aborted"),
+    X_ABORTED       = X_X.arg("%0", lABORTED),
+    INVALID_ACTION_ = INVALID_X.arg(QStringLiteral(u"action.")),
+    X_BUSY          = QStringLiteral(u"%0 is busy. Try again later."),
+    CANT_X_MOUNTED_ = QStringLiteral(u"Can't %0 a %1 while %2.").arg("%0", lMOD, lMOUNTED),
 
 //DIALOGS
     // MAIN INIT
@@ -231,6 +236,9 @@ static const QString
     // MAINWINDOW
     REFRESHING___ = QStringLiteral(u"Refreshing..."),
     REFRESHED_    = QStringLiteral(u"%0 refreshed.").arg(WC3MM),
+    X_cTOOLBAR    = QStringLiteral(u"%0 Toolbar"),
+    GAME_cTOOLBAR = X_cTOOLBAR.arg(GAME),
+    MODS_cTOOLBAR = X_cTOOLBAR.arg(MODS),
     ALLOW_FILES   = QStringLiteral(u"Allow Local Files"),
     GAME_VERSION  = QStringLiteral(u"Preferred Game Version"),
     // SETTINGS

@@ -4,6 +4,10 @@
 #include "_uo_map_qs.h"
 
 namespace md {
+const QString unknownMod = "<unknown>",
+              w3mod      = "war3mod.mpq",
+              w3modX     = "war3mod_%0.mpq";
+
 enum ModData       { Row, Busy, Size };
 typedef std::tuple < int, bool, qint64 > data;
 typedef std::unordered_map<QString, data> modData;

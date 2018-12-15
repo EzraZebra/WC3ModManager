@@ -8,11 +8,11 @@ class QWaitCondition;
 class QMutex;
 
 class ThreadAction {
-public:  enum Action { NoAction, Mount, Unmount, ModData, Scan, ScanMounted, Add, Delete, Shortcut };
+public:  enum Action { NoAction, Mount, Unmount, ModData, Scan, ScanEx, Add, Delete, Shortcut };
          enum Result { Success, Failed, Missing, Result_Size };
 
 private: std::array<int, size_t(Result_Size)> results{};
-         bool isAborted = false, isForced = false;
+         bool isAborted = false; //, isForced = false;
 
 public:  const QString PROCESSING,
                        modName;
@@ -32,7 +32,8 @@ public:  const QString PROCESSING,
          { return results[Failed] || results[Missing] || isAborted; }
 
          bool success() const
-         { return (isForced && !isAborted) || (results[Success] && action != Unmount) || (action == Unmount && !errors());  }
+         { return /*(isForced && !isAborted) || (*/
+                  (results[Success] || action == Unmount || action == Delete) && (!errors() || action == Add);  }
 
          bool filesProcessed() const { return results[Success] || results[Failed] || results[Missing]; }
 
@@ -41,14 +42,14 @@ public:  const QString PROCESSING,
 
      // isAborted, isForced
          void abort() { isAborted = true; }
-         void force()
+         /*void force()
          {
              results = {};
              isAborted = false;
              isForced = true;
-         }
+         }*/
          bool aborted() const { return isAborted; }
-         bool forced() const { return isForced; }
+         //bool forced() const { return isForced; }
 };
 
 Q_DECLARE_METATYPE(ThreadAction)
@@ -56,8 +57,6 @@ Q_DECLARE_METATYPE(ThreadAction)
 class ThreadBase : public QObject
 {
     Q_OBJECT
-
-public:    enum Mode { Move, Copy, Link };
 
 protected:
            QWaitCondition *confirmWait=nullptr;

@@ -21,6 +21,9 @@ public:        enum MountResult { MountReady, Mounted, MountFailed, OtherMounted
 
                const QPixmap pxLogo    = QPixmap(":/img/logo.png"),
                              pxVersion = QPixmap(":/img/version.png");
+               
+               QString mountedMod;
+                              
 private:       QSplashScreen *splashScreen;
                QWidget *finishWgt=nullptr;
 
@@ -33,6 +36,8 @@ public:        Config cfg;
 private slots: void closeSplashTimed();
 signals:       void msg    (const QString &msg, const Msgr::Type &msgType=Msgr::Default);
 public:        void showMsg(const QString &msg, const Msgr::Type &msgType=Msgr::Default, const bool propagate=true);
+               
+               QString getMounted();
 
 public slots:  void launch(const bool editor=false, const QString &args=QString());
 
@@ -40,10 +45,9 @@ public:        bool setAllowOrVersion(const bool enable, const bool version=fals
 
                MountResult mountModCheck(const QString &modName);
                Thread*     mountModThread(const QString &modName);
-               bool        mountModReady(const ThreadAction &action);
                bool        unmountModCheck();
                Thread*     unmountModThread();
-               bool        unmountModReady(const ThreadAction &action);
+               bool        actionDone(const ThreadAction &action);
 
                static QString a2s(const ThreadAction &action);
 private:       static QString a2e(const ThreadAction &action);

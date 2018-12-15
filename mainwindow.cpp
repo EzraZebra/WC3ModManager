@@ -1,10 +1,10 @@
 #include "_dic.h"
 #include "_utils.h"
 #include "thread.h"
-#include "core.h"
+#include "main_core.h"
 #include "mainwindow.h"
-#include "shortcuts.h"
-#include "settings.h"
+#include "dg_shortcuts.h"
+#include "dg_settings.h"
 
 #include <QMenuBar>
 #include <QToolBar>
@@ -20,91 +20,11 @@
 #include <QMessageBox>
 #include <QDesktopServices>
 #include <QDialogButtonBox>
+#include <QTimer>
 
 #include <winerror.h>
 
 #include <QDebug>
-
-/********************************************************************/
-/*      MOD NAME ITEM       *****************************************/
-/********************************************************************/
-    ModNameItem::ModNameItem(const QString &modName) : QFrame()
-    {
-        QHBoxLayout *layout = new QHBoxLayout;
-        setLayout(layout);
-        layout->setSpacing(ModTable::modItemMrg);
-        layout->setContentsMargins(ModTable::modItemMrg, ModTable::modItemMrg, ModTable::modItemMrg, ModTable::modItemMrg);
-
-                    icon = new QLabel;
-            QLabel *nameLbl = new QLabel(modName);
-            layout->addWidget(icon);
-            layout->addWidget(nameLbl);
-            icon->hide();
-            icon->setPixmap(QIcon(":/icons/warning.png").pixmap(24, 24));
-            icon->setSizePolicy(QSizePolicy::Maximum, QSizePolicy::Fixed);
-            icon->setAlignment(Qt::AlignCenter);
-            nameLbl->setAlignment(Qt::AlignLeft|Qt::AlignVCenter);
-    }
-
-/********************************************************************/
-/*      MOD DATA ITEM       *****************************************/
-/********************************************************************/
-    ModDataItem::ModDataItem(const QString &zero, const bool alignRight) : QFrame(),
-        zero(zero)
-    {
-        QGridLayout *layout = new QGridLayout;
-        setLayout(layout);
-        layout->setSpacing(ModTable::modItemMrg);
-        layout->setContentsMargins(ModTable::modItemMrg, ModTable::modItemMrg, ModTable::modItemMrg, ModTable::modItemMrg);
-
-            totalTitle   = new QLabel(d::TOTALc_);
-            totalData    = new QLabel(zero);
-            mountedTitle = new QLabel(d::MOUNTED+": ");
-            mountedData  = new QLabel(zero);
-            layout->addWidget(totalTitle,   0, 0);
-            layout->addWidget(totalData,    0, 1);
-            layout->addWidget(mountedTitle, 1, 0);
-            layout->addWidget(mountedData,  1, 1);
-            const Qt::AlignmentFlag &align = alignRight ? Qt::AlignRight : Qt::AlignLeft;
-            totalTitle->setSizePolicy(QSizePolicy::Maximum, QSizePolicy::Fixed);
-            mountedTitle->setSizePolicy(QSizePolicy::Maximum, QSizePolicy::Fixed);
-            totalTitle->setAlignment(align|Qt::AlignVCenter);
-            totalData->setAlignment(align|Qt::AlignVCenter);
-            mountedTitle->setAlignment(align|Qt::AlignVCenter);
-            mountedData->setAlignment(align|Qt::AlignVCenter);
-            updateView(zero, zero);
-    }
-
-    bool ModDataItem::updateView(const QString &total, const QString &mounted)
-    {
-        const bool vis = mountedData->isVisible();
-        if(total != mounted && mounted != zero)
-        {
-            totalTitle->show();
-            mountedTitle->show();
-            mountedData->show();
-
-            return !vis;
-        }
-        else
-        {
-            totalTitle->hide();
-            mountedTitle->hide();
-            mountedData->hide();
-
-            return vis;
-        }
-    }
-
-    bool ModDataItem::updateData(const QString &data, const bool isMounted)
-    {
-        if(isMounted) mountedData->setText(data);
-        else totalData->setText(data);
-
-        return updateView(isMounted ? totalData->text() : data,
-                          isMounted ? data : mountedData->text());
-
-    }
 
 /********************************************************************/
 /*      MOD TABLE       *********************************************/
@@ -130,21 +50,14 @@
             horizontalHeaderItem(2)->setTextAlignment(Qt::AlignVCenter|Qt::AlignLeft);
     }
 
-    bool ModTable::tryBusy(const QString &modName)
-    {
-        if(md::exists(modData, modName) && !md::busy(modData[modName]))
-        {
-            std::get<int(md::Busy)>(modData[modName]) = true;
-            return true;
-        }
-        else return false;
-    }
+    QLabel* ModTable::cellLabel(const int row, const int column) const
+    { return dynamic_cast<QLabel *>(cellWidget(row, column)); }
 
     void ModTable::resizeCR(const int row)
     {
         resizeColumnToContents(0);
         resizeColumnToContents(1); // Last column (2) is stretched
-        if(row != -1) resizeRowToContents(row);
+        if(row >=0 && row < rowCount()) resizeRowToContents(row);
     }
 
     void ModTable::addMod(const QString &modName, const int row, const bool addData)
@@ -152,22 +65,23 @@
         if(addData)
         {
             modNames.insert(row, modName);
-            modData.insert({ modName, md::newData(row) }); // Adding mod -> Busy = true
+            modData.insert({ modName, md::newData(row) });
             for(int i=row+1; i < modNames.length(); ++i) // Renumber mods following added
                 md::setRow(modData[modNames[i]], i);
         }
 
         insertRow(row);
 
-        ModNameItem *nameItem  = new ModNameItem(modName);
-        ModDataItem *sizeItem  = new ModDataItem(d::ZERO_MB, true),
-                    *filesItem = new ModDataItem(d::ZERO_FILES);
-        setCellWidget(row, 0, nameItem);
-        setCellWidget(row, 1, sizeItem);
-        setCellWidget(row, 2, filesItem);
-        nameItem->setFont(font());
-        sizeItem->setFont(font());
-        filesItem->setFont(font());
+        QLabel *nameLbl = new QLabel(modName),
+               *sizeLbl = new QLabel(d::ZERO_MB),
+               *filesLbl = new QLabel(d::ZERO_FILES);
+        nameLbl->setContentsMargins(3, 0, 3, 0);
+        setCellWidget(row, 0, nameLbl);
+        sizeLbl->setContentsMargins(3, 0, 3, 0);
+        sizeLbl->setAlignment(Qt::AlignVCenter|Qt::AlignRight);
+        setCellWidget(row, 1, sizeLbl);
+        filesLbl->setContentsMargins(3, 0, 3, 0);
+        setCellWidget(row, 2, filesLbl);
         resizeCR(row);
     }
 
@@ -176,9 +90,9 @@
         if(md::exists(modData, modName))
         {
             const int row = this->row(modName);
+
             modNames.removeAt(row);
             modData.erase(modName);
-
             for(int i=row; i < modNames.length(); ++i) // Renumber mods following deleted
                 md::setRow(modData[modNames[i]], i);
 
@@ -187,26 +101,38 @@
         }
     }
 
-    void ModTable::updateMod(const QString &modName, const QString &modSize, const QString &fileCount,
-                             const qint64 size, const bool isMounted)
+    void ModTable::updateMod(const QString &modName, const QString &modSize, const QString &fileCount, const qint64 size)
     {
         if(md::exists(modData, modName))
         {
             const int row = this->row(modName);
 
-            if(isMounted) mountedSize = size;
-            else setSize(modName, size);
+            QLabel *sizeLbl = cellLabel(row, 1),
+                   *fileLbl = cellLabel(row, 2);
 
-            bool resize = dataItem(row, false)->updateData(modSize, isMounted);
-            resize = dataItem(row, true)->updateData(fileCount, isMounted) || resize;
+            const QString &oldSize = sizeLbl->text(),
+                          &oldCount = fileLbl->text();
 
-            if(isRowHidden(row) && (modSize != d::ZERO_MB || fileCount != d::ZERO_FILES))
+            bool resize = oldSize.length() != modSize.length() || oldCount.length() != fileCount.length(),
+                 focus = !hasFocus() && currentRow() == row;
+            
+            setSize(modName, size);
+            sizeLbl->setText(modSize);
+            fileLbl->setText(fileCount);
+
+            if(isRowHidden(row))
             {
-                showRow(row);
-                resize = true;
+                if(modSize != d::ZERO_MB || fileCount != d::ZERO_FILES)
+                {
+                    showRow(row);
+                    resize = true;
+                }
+                else focus = false;
             }
+            else focus = focus && oldSize == d::ZERO_MB && oldCount == d::ZERO_FILES;
 
             if(resize) resizeCR(row);
+            if(focus) setFocus();
         }
     }
 
@@ -245,8 +171,8 @@ MainWindow::MainWindow(Core *const core) : QMainWindow(),
             aboutMenu->addAction(acOpenAbout);
 
     // TOOLBARS
-    QToolBar *gameToolBar = new QToolBar,
-             *modsToolBar = new QToolBar;
+    QToolBar *gameToolBar = new QToolBar(d::GAME_cTOOLBAR),
+             *modsToolBar = new QToolBar(d::MODS_cTOOLBAR);
     addToolBar(gameToolBar);
     addToolBarBreak();
     addToolBar(modsToolBar);
@@ -254,8 +180,8 @@ MainWindow::MainWindow(Core *const core) : QMainWindow(),
     // QAction with iconSize 32x32 appears to have default size of 35x35 (including hover background+border)
     const int tbMargins = 5, gtbItemMargins = 3, gtbMargins = tbMargins-gtbItemMargins; // <--^ so adjust margins/spacing
     gameToolBar->layout()->setSpacing(gtbMargins);
-    gameToolBar->layout()->setContentsMargins(gtbMargins, gtbMargins, gtbMargins, gtbMargins);
     modsToolBar->layout()->setSpacing(tbMargins);
+    gameToolBar->layout()->setContentsMargins(gtbMargins, gtbMargins, gtbMargins, gtbMargins);
     modsToolBar->layout()->setContentsMargins(tbMargins, tbMargins, tbMargins, tbMargins);
 
         // GAME TOOLBAR WIDGETS
@@ -286,6 +212,7 @@ MainWindow::MainWindow(Core *const core) : QMainWindow(),
         modsToolBar->addWidget(addModBtn);
         modsToolBar->addWidget(refreshBtn);
         toggleMountBtn->setCheckable(true);
+        refreshBtn->setShortcut(QKeySequence(Qt::Key_F5));
 
     // MOD LIST
     modTable = new ModTable;
@@ -319,17 +246,16 @@ MainWindow::MainWindow(Core *const core) : QMainWindow(),
     connect(acOpenSettings,   &QAction::triggered, this, &MainWindow::openSettings);
     connect(acOpenAbout,      &QAction::triggered, this, &MainWindow::openAbout);
     // TOOLBAR
-    connect(launchGameAc,    SIGNAL(triggered()),   core, SLOT(launch()));
-    connect(launchEditorAc,  &QAction::triggered,   this, &MainWindow::launchEditor);
-    connect(allowFilesCbx,   SIGNAL(toggled(bool)),       SLOT(setAllowOrVersion(bool)));
-    connect(gameVersionCbx,  &QCheckBox::toggled,   this, &MainWindow::setVersion);
-    connect(addModBtn,       &QPushButton::clicked, this, &MainWindow::addMod);
-    connect(refreshBtn,      SIGNAL(clicked()),           SLOT(refresh()));
+    connect(launchGameAc,   SIGNAL(triggered()),   core, SLOT(launch()));
+    connect(launchEditorAc, &QAction::triggered,   this, &MainWindow::launchEditor);
+    connect(allowFilesCbx,  SIGNAL(toggled(const bool)), SLOT(setAllowOrVersion(const bool)));
+    connect(gameVersionCbx, &QCheckBox::toggled,   this, &MainWindow::setVersion);
+    connect(addModBtn,      &QPushButton::clicked, this, &MainWindow::addMod);
+    connect(refreshBtn,     SIGNAL(clicked()),           SLOT(refresh()));
     // MOD LIST
-    //connect(modTable,      &QTableWidget::itemDoubleClicked, this, &MainWindow::renameModStart);
-    connect(actionOpen,    &QAction::triggered,              this, &MainWindow::openModFolder);
-    connect(actionRename,  &QAction::triggered,              this, &MainWindow::renameModAction);
-    connect(actionDelete,  &QAction::triggered,              this, &MainWindow::deleteMod);
+    connect(actionOpen,   &QAction::triggered, this, &MainWindow::openModFolder);
+    connect(actionRename, &QAction::triggered, this, &MainWindow::renameModAction);
+    connect(actionDelete, &QAction::triggered, this, &MainWindow::deleteMod);
 }
 
 void MainWindow::show()
@@ -353,24 +279,19 @@ void MainWindow::showMsg(const QString &msg, const Msgr::Type &msgType)
     core->showMsg(msg, msgType, false);
 }
 
-bool MainWindow::modSelected()
-{
-    if(!modTable->modSelected())
-    {
-        showMsg(d::NO_MOD_X_.arg(d::lSELECTED));
-        return false;
-    }
-    else return true;
-}
-
 bool MainWindow::tryBusy(const QString &modName)
 {
-    if(!modTable->tryBusy(modName))
+    const bool exists = md::exists(modTable->modData, modName);
+    if(!exists || !md::busy(modTable->modData[modName]))
+    {
+        if(exists) std::get<int(md::Busy)>(modTable->modData[modName]) = true;
+        return true;
+    }
+    else
     {
         showMsg(d::X_BUSY.arg(modName), Msgr::Info);
         return false;
     }
-    else return true;
 }
 
 void MainWindow::updateLaunchBtns()
@@ -378,14 +299,14 @@ void MainWindow::updateLaunchBtns()
     launchGameAc->setEnabled(false);
     launchEditorAc->setEnabled(false);
 
-    const bool modEnabled = allowFilesCbx->isChecked() && !core->cfg.getSetting(Config::kMounted).isEmpty(),
-               exp        = gameVersionCbx->isChecked();
+    const bool modEnabled = !core->mountedMod.isEmpty(),
+               exp = gameVersionCbx->isChecked();
+    
     launchGameAc->setIcon(gameIcons[size_t(modEnabled<<1)|exp]);
-    launchGameAc->setToolTip(d::LAUNCH_X.arg(modEnabled ? core->cfg.getSetting(Config::kMounted)
-                                                          +" ("+(exp ? d::EXPANSION : d::CLASSIC)+")"
+    launchGameAc->setToolTip(d::LAUNCH_X.arg(modEnabled ? core->mountedMod+" ("+(exp ? d::EXPANSION : d::CLASSIC)+")"
                                                         : exp ? d::TFT : d::ROC));
     launchEditorAc->setIcon(editIcons[modEnabled]);
-    launchEditorAc->setToolTip(d::LAUNCH_X.arg(d::WE)+(modEnabled ? " ("+core->cfg.getSetting(Config::kMounted)+")"
+    launchEditorAc->setToolTip(d::LAUNCH_X.arg(d::WE)+(modEnabled ? " ("+core->mountedMod+")"
                                                                   : QString()));
 
     launchGameAc->setEnabled(true);
@@ -419,19 +340,20 @@ void MainWindow::updateAllowOrVersion(const bool version)
     else allowFilesCbx->setEnabled(true);
 }
 
-void MainWindow::updateMountState(const QString &modName)
+void MainWindow::updateMountState(const QString &modName, const bool enableBtn)
 {
-    toggleMountBtn->setEnabled(false);
+    if(enableBtn) toggleMountBtn->setEnabled(false);
 
     disconnect(toggleMountBtn, &QPushButton::clicked, this, &MainWindow::unmountMod);
     disconnect(toggleMountBtn, &QPushButton::clicked, this, &MainWindow::mountMod);
     disconnect(toggleMountAc,  &QAction::triggered,   this, &MainWindow::unmountMod);
     disconnect(toggleMountAc,  &QAction::triggered,   this, &MainWindow::mountMod);
 
-    if(core->cfg.getSetting(Config::kMounted).isEmpty())
+    if(core->mountedMod.isEmpty())
     {
-        toggleMountBtn->setText(d::aX.arg(d::MOUNT));
         toggleMountAc->setText(d::aX.arg(d::MOUNT));
+        toggleMountBtn->setText(d::aX.arg(d::MOUNT));
+        toggleMountBtn->setToolTip(QString());
         toggleMountBtn->setChecked(false);
         connect(toggleMountBtn, &QPushButton::clicked, this, &MainWindow::mountMod);
         connect(toggleMountAc,  &QAction::triggered,   this, &MainWindow::mountMod);
@@ -440,89 +362,65 @@ void MainWindow::updateMountState(const QString &modName)
         {
             const int row = modTable->row(modName);
 
-            ModNameItem *nameItem  = modTable->nameItem(row);
-            QWidget     *sizeItem  = modTable->cellWidget(row, 1),
-                        *filesItem = modTable->cellWidget(row, 2);
-            nameItem->setStyleSheet(QString());
-            sizeItem->setStyleSheet(QString());
-            filesItem->setStyleSheet(QString());
-            nameItem->setFont(modTable->font());
-            sizeItem->setFont(modTable->font());
-            filesItem->setFont(modTable->font());
+            QWidget *nameItem  = modTable->cellWidget(row, 0),
+                    *sizeItem  = modTable->cellWidget(row, 1),
+                    *filesItem = modTable->cellWidget(row, 2);
+            if(nameItem->styleSheet() != QString())
+            {
+                nameItem->setStyleSheet(QString());
+                sizeItem->setStyleSheet(QString());
+                filesItem->setStyleSheet(QString());
+                nameItem->setFont(modTable->font());
+                sizeItem->setFont(modTable->font());
+                filesItem->setFont(modTable->font());
 
-            nameItem->icon->hide();
-            nameItem->setToolTip(QString());
-            sizeItem->setToolTip(QString());
-            filesItem->setToolTip(QString());
-
-            modTable->resizeCR(row);
+                modTable->resizeCR(row);
+            }
         }
     }
     else
     {
-        toggleMountBtn->setText(d::UNaMOUNT);
         toggleMountAc->setText(d::UNaMOUNT);
+        toggleMountBtn->setText(d::UNaMOUNT);
+        toggleMountBtn->setToolTip(d::UNMOUNT+" "+core->mountedMod);
         toggleMountBtn->setChecked(true);
         connect(toggleMountBtn, &QPushButton::clicked, this, &MainWindow::unmountMod);
         connect(toggleMountAc,  &QAction::triggered,   this, &MainWindow::unmountMod);
 
-        if(md::exists(modTable->modData, modName.isEmpty() ? core->cfg.getSetting(Config::kMounted) : modName))
+        if(md::exists(modTable->modData, modName.isEmpty() ? core->mountedMod : modName))
         {
-            const int row = modTable->row(modName.isEmpty() ? core->cfg.getSetting(Config::kMounted) : modName);
+            const int row = modTable->row(modName.isEmpty() ? core->mountedMod : modName);
 
-            ModNameItem *nameItem  = modTable->nameItem(row);
-            QWidget     *sizeItem  = modTable->cellWidget(row, 1),
-                        *filesItem = modTable->cellWidget(row, 2);
+            QWidget *nameItem  = modTable->cellWidget(row, 0),
+                    *sizeItem  = modTable->cellWidget(row, 1),
+                    *filesItem = modTable->cellWidget(row, 2);
 
-            QString style = "QFrame { border-top: 2px dashed #f7f500; border-bottom: 2px dashed #f7f500;"
-                                     "background-color: #555; }"
-                            "QFrame:selected { background-color: #557; }"
-                            "QLabel { border: 0; color: #eee; }";
-
-            nameItem->setStyleSheet(style);
-            sizeItem->setStyleSheet(style);
-            filesItem->setStyleSheet(style);
-            nameItem->setFont(modTable->font());
-            sizeItem->setFont(modTable->font());
-            filesItem->setFont(modTable->font());
-
-            int i = 1;
-            QString errorString, prev;
-            for(const QString &error : core->cfg.getSetting(Config::kMountedError).split(";", QString::SkipEmptyParts))
+            if(nameItem->styleSheet() == QString())
             {
-                if(error != prev)
-                {
-                    errorString += "\n("+QString::number(i)+") "+error;
-                    prev = error;
-                }
-                ++i;
+                const QString &style = "border: 2px dashed #f7f500; background-color: #555; color: #eee;";
+
+                nameItem->setStyleSheet(style+"border-right: 0;");
+                sizeItem->setStyleSheet(style+"border-left: 0; border-right: 0;");
+                filesItem->setStyleSheet(style+"border-left: 0;");
+                nameItem->setFont(modTable->font());
+                sizeItem->setFont(modTable->font());
+                filesItem->setFont(modTable->font());
+                
+                modTable->resizeCR(row);
             }
-
-            if(!errorString.isEmpty()) errorString = d::WARNING+":"+errorString;
-
-            nameItem->icon->setVisible(!errorString.isEmpty());
-            nameItem->setToolTip(errorString);
-            sizeItem->setToolTip(errorString);
-            filesItem->setToolTip(errorString);
-
-            modTable->resizeCR(row);
         }
     }
 
     if(!modName.isEmpty()) modTable->setFocus();
     updateLaunchBtns();
-    toggleMountBtn->setEnabled(true);
+    if(enableBtn) toggleMountBtn->setEnabled(true);
 }
 
-void MainWindow::launchEditor()
-{
-    core->launch(true);
-}
+void MainWindow::launchEditor() { core->launch(true); }
 
 void MainWindow::setAllowOrVersion(const bool enable, const bool version)
 {
-    if(core->setAllowOrVersion(enable, version))
-        updateLaunchBtns();
+    if(core->setAllowOrVersion(enable, version)) updateLaunchBtns();
     else updateAllowOrVersion(version);
 }
 
@@ -533,65 +431,77 @@ void MainWindow::refresh(const bool silent)
     refreshing = !silent;
     if(!silent) showMsg(d::REFRESHING___, Msgr::Busy);
 
-    Thread *thr = new Thread(ThreadAction::ModData, core->cfg.pathMods);
-    connect(thr, &Thread::modDataReady, this, &MainWindow::modDataReady);
-    thr->start(modTable->modData);
+    core->mountedMod = core->getMounted();
+    
+    Thread *thr = new Thread(ThreadAction::ModData, QString(), core->cfg.pathMods);
+    connect(thr, &Thread::modDataReady, this, &MainWindow::scanMods);
+    thr->start(modTable->modData, core->mountedMod);
 
     updateAllowOrVersion();
     updateAllowOrVersion(true);
 }
 
-void MainWindow::modDataReady(const md::modData &modData, const QStringList &modNames)
+void MainWindow::scanMods(const md::modData &modData, const QStringList &modNames)
 {
     const QString &selectedMod = modTable->modSelected() && modTable->currentRow() < modTable->modNames.length()
                                     ? modTable->modNames[modTable->currentRow()] : QString();
     int selectedRow = -1;
-    bool mountedFound = false;
+    bool mountedFound = core->mountedMod.isEmpty();
 
     modTable->setRowCount(0);
-    modTable->modData.clear();
     modTable->modData = modData;
-    modTable->modNames.clear();
     modTable->modNames = modNames;
-
     scanCount = modTable->modNames.length();
 
     for(const QString &modName : modTable->modNames)
     {
         const int row = modTable->rowCount();
+        bool externalMod = false;
 
         modTable->addMod(modName, row);
 
         if(modName == selectedMod) selectedRow = row;
 
-        if(mountedFound || modName != core->cfg.getSetting(Config::kMounted))
+        if(mountedFound || modName != core->mountedMod)
         {
-            if(core->cfg.getSetting(Config::kHideEmpty) == Config::vOn)
-                modTable->hideRow(row);
+            if(core->cfg.getSetting(Config::kHideEmpty) == Config::vOn) modTable->hideRow(row);
         }
         else
         {
             mountedFound = true;
 
-            if(modTable->tryBusy(modName))
+            if(selectedRow == -1) selectedRow = row;
+            
+            const QString &modPath = core->cfg.getSetting(Config::kGamePath)+"/"+md::w3mod;
+            const QFileInfo &fiMounted(modPath);
+            
+            externalMod = fiMounted.absolutePath() != core->cfg.pathMods;
+            if(externalMod)
             {
-                Thread *thr = new Thread(ThreadAction::ScanMounted, modName, core->cfg.pathMods);
-                connect(thr, &Thread::scanModUpdate, modTable, &ModTable::updateMounted);
-                connect(thr, &Thread::scanModReady,  modTable, &ModTable::setIdle);
-                thr->start();
+                if(fiMounted.exists() && fiMounted.isDir())
+                {
+                    Thread *thr = new Thread(ThreadAction::ScanEx, modName);
+                    connect(thr, &Thread::scanModUpdate, modTable, &ModTable::updateMod);
+                    connect(thr, &Thread::scanModReady,  this,     &MainWindow::scanModDone);
+                    thr->start(fiMounted.isSymLink() ? fiMounted.symLinkTarget() : modPath);
+                }
+                else scanModDone(modName);
             }
         }
 
-        Thread *thr = new Thread(ThreadAction::Scan, modName, core->cfg.pathMods);
-        connect(thr, &Thread::scanModUpdate, modTable, &ModTable::updateTotal);
-        connect(thr, &Thread::scanModReady,  this,     &MainWindow::scanModDone);
-        thr->start();
+        if(!externalMod)
+        {
+            Thread *thr = new Thread(ThreadAction::Scan, modName, core->cfg.pathMods);
+            connect(thr, &Thread::scanModUpdate, modTable, &ModTable::updateMod);
+            connect(thr, &Thread::scanModReady,  this,     &MainWindow::scanModDone);
+            thr->start();
+        }
     }
 
     if(selectedRow >= 0 && selectedRow < modTable->rowCount()) modTable->selectRow(selectedRow);
 
-    if(!core->cfg.getSetting(Config::kMounted).isEmpty() && !mountedFound)
-        showMsg(d::FAILED_TO_FIND_MOUNTED_X_.arg(core->cfg.getSetting(Config::kMounted)), Msgr::Critical);
+    if(!core->mountedMod.isEmpty() && !mountedFound)
+        showMsg(d::FAILED_TO_FIND_MOUNTED_X_.arg(core->mountedMod), Msgr::Critical);
 
     updateMountState();
 }
@@ -602,12 +512,8 @@ void MainWindow::scanModDone(const QString &modName)
     {
         const int row = modTable->row(modName);
 
-        modTable->resizeCR(row);
         if(row == modTable->currentRow())
-        {
-            //modTable->scrollToItem(modTable->item(row, 0));
-            modTable->setFocus();
-        }
+        modTable->setFocus();
     }
 
     if(--scanCount <= 0)
@@ -632,36 +538,27 @@ void MainWindow::mountMod()
         {
             toggleMountBtn->setEnabled(false);
 
+            core->mountedMod = modName;
             Thread *thr = core->mountModThread(modName);
-            connect(thr, &Thread::resultReady,   this,     &MainWindow::actionReady);
-            connect(thr, &Thread::scanModUpdate, modTable, &ModTable::updateMounted);
+            connect(thr, &Thread::resultReady, this, &MainWindow::actionDone);
             thr->start();
         }
 
-        updateMountState(modName);
+        updateMountState(modName, false);
     }
 }
 
 void MainWindow::unmountMod()
 {
-    if(tryBusy(core->cfg.getSetting(Config::kMounted)) && core->unmountModCheck())
+    if(tryBusy(core->mountedMod) && core->unmountModCheck())
     {
         toggleMountBtn->setEnabled(false);
 
-        qint64 modSize = 0;
-        QString fileCount;
-        if(md::exists(modTable->modData, core->cfg.getSetting(Config::kMounted)))
-        {
-            modSize = modTable->mountedSize;
-            fileCount = modTable->dataItem(modTable->row(core->cfg.getSetting(Config::kMounted)), true)->mountedData->text();
-        }
-
         Thread *thr = core->unmountModThread();
-        connect(thr, &Thread::resultReady,   this,     &MainWindow::actionReady);
-        connect(thr, &Thread::scanModUpdate, modTable, &ModTable::updateMounted);
-        thr->start(modSize, fileCount);
+        connect(thr, &Thread::resultReady, this, &MainWindow::actionDone);
+        thr->start();
     }
-    else updateMountState(core->cfg.getSetting(Config::kMounted));
+    else updateMountState(core->mountedMod);
 }
 
 void MainWindow::addMod()
@@ -692,10 +589,10 @@ void MainWindow::addMod()
                 showMsg(d::ADDING_X___.arg(modName), Msgr::Busy);
 
                 Thread *thr = new Thread(ThreadAction::Add, modName, core->cfg.pathMods, core->cfg.getSetting(Config::kGamePath));
-                connect(thr, &Thread::resultReady,   this,     &MainWindow::actionReady);
+                connect(thr, &Thread::resultReady,   this,     &MainWindow::actionDone);
                 connect(thr, &Thread::modAdded, modTable, &ModTable::addMod);
-                connect(thr, &Thread::scanModUpdate, modTable, &ModTable::updateTotal);
-                thr->start(src, dst, copyMove.clickedButton() == copyBtn ? Thread::Copy : Thread::Move);
+                connect(thr, &Thread::scanModUpdate, modTable, &ModTable::updateMod);
+                thr->start(src, dst, copyMove.clickedButton() == copyBtn);
             }
         }
     }
@@ -703,14 +600,17 @@ void MainWindow::addMod()
 
 void MainWindow::deleteMod()
 {
-    if(modSelected())
+    if(!modTable->modSelected()) showMsg(d::NO_MOD_X_.arg(d::lSELECTED));
+    else
     {
         const QString &modName = modTable->modNames[modTable->currentRow()];
 
-        if(QMessageBox::warning(this, d::PERM_DELETE_Xq.arg(modName), d::PERM_DELETE_X_LONGq.arg(modName,
-                                    modTable->dataItem(modTable->currentRow(), false)->totalData->text(),
-                                    modTable->dataItem(modTable->currentRow(), true)->totalData->text()),
-                                QMessageBox::Yes|QMessageBox::No) == QMessageBox::Yes
+        if(modName == core->mountedMod)
+            showMsg(d::CANT_X_MOUNTED_.arg(d::lDELETE), Msgr::Info);
+        else if(QMessageBox::warning(this, d::PERM_DELETE_Xq.arg(modName), d::PERM_DELETE_X_LONGq.arg(modName,
+                                         modTable->cellLabel(modTable->currentRow(), 1)->text(),
+                                         modTable->cellLabel(modTable->currentRow(), 2)->text()),
+                                     QMessageBox::Yes|QMessageBox::No) == QMessageBox::Yes
                 && tryBusy(modName))
         {
             showMsg(d::DELETING_X___.arg(modName), Msgr::Busy);
@@ -720,26 +620,32 @@ void MainWindow::deleteMod()
             if(md::exists(modTable->modData, modName))
             {
                 modSize = md::size(modTable->modData[modName]);
-                fileCount = modTable->dataItem(modTable->row(modName), true)->totalData->text();
+                fileCount = modTable->cellLabel(modTable->row(modName), 2)->text();
             }
 
             Thread *thr = new Thread(ThreadAction::Delete, modName, core->cfg.pathMods, core->cfg.getSetting(Config::kGamePath));
-            connect(thr, &Thread::resultReady,   this,     &MainWindow::actionReady);
+            connect(thr, &Thread::resultReady,   this,     &MainWindow::actionDone);
             connect(thr, &Thread::modDeleted,    modTable, &ModTable::deleteMod);
-            connect(thr, &Thread::scanModUpdate, modTable, &ModTable::updateTotal);
+            connect(thr, &Thread::scanModUpdate, modTable, &ModTable::updateMod);
             thr->start(modSize, fileCount);
         }
     }
 }
 
-void MainWindow::actionReady(const ThreadAction &action)
+void MainWindow::actionDone(const ThreadAction &action)
 {
     if(action == ThreadAction::Mount || action == ThreadAction::Unmount)
     {
-        if(action == ThreadAction::Mount) core->mountModReady(action);
-        else core->unmountModReady(action);
-
+        core->actionDone(action);
         updateMountState(action.modName);
+
+        if(action == ThreadAction::Unmount)
+        {
+            const QFileInfo &fiMod(core->cfg.pathMods+"/"+action.modName);
+
+            if(action.modName == md::unknownMod || (!fiMod.isSymLink() && !fiMod.exists()))
+                modTable->deleteMod(action.modName);
+        }
     }
     else showMsg(Core::a2s(action));
 
@@ -748,6 +654,22 @@ void MainWindow::actionReady(const ThreadAction &action)
 
 void MainWindow::renameModAction()
 {
+    if(!modTable->modSelected()) showMsg(d::NO_MOD_X_.arg(d::lSELECTED));
+    else
+    {
+        QLabel *name = modTable->cellLabel(modTable->currentRow(), 0);
+        const QString &modName = name->text();
+
+        if(modName == core->mountedMod)
+            showMsg(d::CANT_X_MOUNTED_.arg(d::lRENAME), Msgr::Info);
+        else if(tryBusy(modName))
+        {
+            name->setTextInteractionFlags(Qt::TextEditorInteraction);
+            name->setCursor(Qt::IBeamCursor);
+            name->setSelection(0, name->text().length());
+            name->setFocus();
+        }
+    }
    // if(modSelected()) renameModStart(modList->item(modList->currentRow(), 0));
 }
 
@@ -911,3 +833,71 @@ void MainWindow::openAbout()
 
     about.exec();
 }
+
+/********************************************************************/
+/*      OBSOLETE - may be useful later      *************************/
+/********************************************************************
+
+    ModDataItem::ModDataItem(const int row, const QString &zero, const bool alignRight) : QFrame(),
+        zero(zero), row(row), timer(new QTimer(this))
+    {
+        timer->setSingleShot(true);
+
+        QGridLayout *layout = new QGridLayout;
+        setLayout(layout);
+        layout->setSpacing(0);
+        layout->setContentsMargins(ModTable::modItemMrgn, ModTable::modItemMrgn, ModTable::modItemMrgn, ModTable::modItemMrgn);
+
+            totalTitle   = new QLabel(d::TOTALc_);
+            totalData    = new QLabel(zero);
+            mountedTitle = new QLabel(d::MOUNTED+": ");
+            mountedData  = new QLabel(zero);
+            layout->addWidget(totalTitle,   0, 0);
+            layout->addWidget(totalData,    0, 1);
+            layout->addWidget(mountedTitle, 1, 0);
+            layout->addWidget(mountedData,  1, 1);
+            const Qt::AlignmentFlag &align = alignRight ? Qt::AlignRight : Qt::AlignLeft;
+            totalTitle->setSizePolicy(QSizePolicy::Maximum, QSizePolicy::Fixed);
+            mountedTitle->setSizePolicy(QSizePolicy::Maximum, QSizePolicy::Fixed);
+            totalTitle->setAlignment(align|Qt::AlignVCenter);
+            totalData->setAlignment(align|Qt::AlignVCenter);
+            mountedTitle->setAlignment(align|Qt::AlignVCenter);
+            mountedData->setAlignment(align|Qt::AlignVCenter);
+            updateView();
+
+        connect(timer, &QTimer::timeout, this, &ModDataItem::updateView);
+    }
+
+    void ModDataItem::updateData(const QString &data, const bool dataMounted)
+    {
+        if(dataMounted) mountedData->setText(data);
+        else totalData->setText(data);
+
+        const bool wantVisible = dataMounted ? (totalData->text() != data && data != zero)
+                                             : (data != mountedData->text() && mountedData->text() != zero);
+
+        if(detailsVisible != wantVisible)
+        {
+            detailsVisible = wantVisible;
+            if(!timer->isActive())
+            {
+                timer->start(1000);
+                updateView();
+            }
+        }
+    }
+
+    void ModDataItem::updateView()
+    {
+        if(totalTitle->isVisibleTo(this) != detailsVisible)
+        {
+            totalTitle->setVisible(detailsVisible);
+            mountedTitle->setVisible(detailsVisible);
+            mountedData->setVisible(detailsVisible);
+            emit viewUpdated(row);
+        }
+    }
+
+ ********************************************************************/
+/********************************************************************/
+/********************************************************************/

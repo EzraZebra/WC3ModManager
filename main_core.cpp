@@ -1,6 +1,6 @@
 #include "_dic.h"
 #include "thread.h"
-#include "core.h"
+#include "main_core.h"
 
 #include <QSplashScreen>
 #include <QLabel>
@@ -34,14 +34,15 @@ Core::Core() : QObject(),
 
     showMsg(d::STARTING___, Msgr::Busy);
     splashScreen->show();
+
+    mountedMod = getMounted();
 }
 
 Core::~Core()
 {
     if(splashScreen)
     {
-        if(splashScreen->isVisible()) closeSplashTimed();
-        else splashScreen->deleteLater(); // In case it didn't get deleted when close()d
+        splashScreen->close();
         splashScreen = nullptr;
     }
 }
@@ -93,9 +94,17 @@ void Core::showMsg(const QString &_msg, const Msgr::Type &msgType, const bool pr
     }
 }
 
+QString Core::getMounted()
+{
+    const QFileInfo &fiMounted(cfg.getSetting(Config::kGamePath)+"/"+md::w3mod);
+
+    return fiMounted.exists() && fiMounted.isDir() ? fiMounted.isSymLink() ? QFileInfo(fiMounted.symLinkTarget()).fileName()
+                                                                           : md::unknownMod
+                                                   : QString();
+}
+
 void Core::launch(const bool editor, const QString &args)
 {
-
     bool success;
     const QString &exe = editor ? d::WE_EXE : d::WC3_EXE;
 
@@ -139,12 +148,12 @@ bool Core::setAllowOrVersion(const bool enable, const bool version)
 
 Core::MountResult Core::mountModCheck(const QString &modName)
 {
-    if(!cfg.getSetting(Config::kMounted).isEmpty())
+    if(!mountedMod.isEmpty())
     {
-        if(cfg.getSetting(Config::kMounted) == modName) return Mounted;
+        if(mountedMod == modName) return Mounted;
         else
         {
-            showMsg(d::ALREADY_MOUNTEDc_X_.arg(cfg.getSetting(Config::kMounted)), Msgr::Error);
+            showMsg(d::ALREADY_MOUNTEDc_X_.arg(mountedMod), Msgr::Error);
             return OtherMounted;
         }
     }
@@ -164,38 +173,12 @@ Thread* Core::mountModThread(const QString &modName)
 {
     showMsg(d::MOUNTING_X___.arg(modName), Msgr::Busy);
 
-    cfg.saveSetting(Config::kMounted, modName);
-    cfg.saveConfig();
-
     return new Thread(ThreadAction::Mount, modName, cfg.pathMods, cfg.getSetting(Config::kGamePath));
-}
-
-bool Core::mountModReady(const ThreadAction &action)
-{
-    if(action.success())
-    {
-        if(action.errors())
-        {
-            cfg.saveSetting(Config::kMountedError, a2e(action));
-            cfg.saveConfig();
-        }
-    }
-    else
-    {
-        cfg.deleteSetting(Config::kMounted);
-        cfg.deleteSetting(Config::kMountedError);
-        cfg.saveConfig();
-    }
-
-    showMsg(a2s(action));
-
-    return action.success() && !action.errors();
 }
 
 bool Core::unmountModCheck()
 {
-    if(!cfg.getSetting(Config::kMounted).isEmpty())
-        return true;
+    if(!mountedMod.isEmpty()) return true;
     else
     {
         showMsg(d::NO_MOD_X_.arg(d::lMOUNTED), Msgr::Error);
@@ -205,30 +188,26 @@ bool Core::unmountModCheck()
 
 Thread* Core::unmountModThread()
 {
-    showMsg(d::UNMOUNTING_X___.arg(cfg.getSetting(Config::kMounted)), Msgr::Busy);
+    showMsg(d::UNMOUNTING_X___.arg(mountedMod), Msgr::Busy);
 
-    return new Thread(ThreadAction::Unmount, cfg.getSetting(Config::kMounted), cfg.pathMods, cfg.getSetting(Config::kGamePath));
+    return new Thread(ThreadAction::Unmount, mountedMod, cfg.pathMods, cfg.getSetting(Config::kGamePath));
 }
 
-bool Core::unmountModReady(const ThreadAction &action)
+bool Core::actionDone(const ThreadAction &action)
 {
-    if(!action.success())
-    {
-        QString errorMsg = a2e(action);
-        if(!cfg.getSetting(Config::kMountedError).isEmpty()) errorMsg = cfg.getSetting(Config::kMountedError)+";"+errorMsg;
-        cfg.saveSetting(Config::kMountedError, errorMsg);
-    }
-    else
-    {
-        cfg.deleteSetting(Config::kMounted);
-        cfg.deleteSetting(Config::kMountedError);
-    }
-
-    cfg.saveConfig();
-
     showMsg(a2s(action));
 
-    return action.success();
+    if(action == ThreadAction::Mount && action.success())
+    {
+        mountedMod = action.modName;
+        return !action.errors();
+    }
+    else if(action == ThreadAction::Unmount && !action.errors())
+    {
+        mountedMod = QString();
+        return true;
+    }
+    else return false;
 }
 
 QString Core::a2s(const ThreadAction &action)
@@ -254,10 +233,10 @@ QString Core::a2e(const ThreadAction &action)
     const d::ac_t &dac = d::ac.find(action.PROCESSING)->second;
     return QStringLiteral(u"%0: %1%2%3").arg(
    /* %0 */   action.aborted()           ? d::X_ABORTED.arg(action.PROCESSING)
-              : action.forced()          ? d::FORCE_X.arg(dac[size_t(d::Ac::lPROCESS)])
+              //: action.forced()          ? d::FORCE_X.arg(dac[size_t(d::Ac::lPROCESS)])
               : !action.filesProcessed() ? d::NO_FILES_TO_X.arg(dac[size_t(d::Ac::lPROCESS)])
               : action.success()         ? dac[size_t(d::Ac::PROCESSED)]
-                                          : d::X_FAILED.arg(action.PROCESSING),
+                                         : d::X_FAILED.arg(action.PROCESSING),
    /* %1 */   dac[size_t(d::Ac::X_PROCESSED)].arg(d::X_FILES).arg(action.get(ThreadAction::Success)),
    /* %2 */   action.get(ThreadAction::Failed)  ? ", "+d::X_FAILED.arg(d::X_FILES).arg(action.get(ThreadAction::Failed))   : QString(),
    /* %3 */   action.get(ThreadAction::Missing) ? ", "+d::X_MISSING.arg(d::X_FILES).arg(action.get(ThreadAction::Missing)) : QString());

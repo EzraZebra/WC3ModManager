@@ -12,9 +12,7 @@
 class Config
 {
          static const QChar   CFG_SEP;
-public:  static const QString vOn, vOff,                // v = value
-                              kGamePath, kHideEmpty,    // k = key
-                              kMounted, kMountedSize, kMountedFiles, kMountedError;
+public:  static const QString vOn, vOff, kGamePath, kHideEmpty; //, kMounted, kMountedError;
 
          const QString     pathMods = QCoreApplication::applicationDirPath()+"/mods";
 private: const std::string pathCfg  = QCoreApplication::applicationDirPath().toStdString()+"/config.cfg";

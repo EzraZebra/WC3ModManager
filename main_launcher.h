@@ -25,8 +25,8 @@ private:       void close();
                void scanMod();
                void unmountMod();
 private slots: void mountMod();
-               void mountModReady  (const ThreadAction &action);
-               void unmountModReady(const ThreadAction &action);
+               void mountModDone  (const ThreadAction &action);
+               void unmountModDone(const ThreadAction &action);
 };
 
 #endif // LAUNCHER_H

@@ -7,11 +7,9 @@ const QChar   Config::CFG_SEP       = '=';
 const QString Config::vOn           = "1",
               Config::vOff          = "0",
               Config::kGamePath     = "GamePath",
-              Config::kHideEmpty    = "HideEmptyMods",
+              Config::kHideEmpty    = "HideEmptyMods";/*,
               Config::kMounted      = "Mounted",
-              Config::kMountedSize  = "MountedMB",
-              Config::kMountedFiles = "MountedFiles",
-              Config::kMountedError = "MountedError";
+              Config::kMountedError = "MountedError";*/
 
 Config::Config()
 {

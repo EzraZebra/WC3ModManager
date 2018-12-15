@@ -1,6 +1,6 @@
 #include "_dic.h"
-#include "core.h"
-#include "launcher.h"
+#include "main_core.h"
+#include "main_launcher.h"
 #include "mainwindow.h"
 
 #include <QApplication>

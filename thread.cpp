@@ -52,19 +52,19 @@
         setFixedSize(400, 90);
 
         QVBoxLayout *layout = new QVBoxLayout;
-        setLayout(layout);
         layout->setContentsMargins(9, 9, 9, 12);
+        setLayout(layout);
 
             statusLbl = new QLabel;
-            infoLbl   = new QLabel;
-            layout->addWidget(statusLbl);
-            layout->addWidget(infoLbl);
             statusLbl->setFixedHeight(13);
-            infoLbl->setFixedHeight(13);
             statusLbl->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
-            infoLbl->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
-
             statusLbl->setText(status+":");
+            layout->addWidget(statusLbl);
+
+            infoLbl = new QLabel;
+            infoLbl->setFixedHeight(13);
+            infoLbl->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
+            layout->addWidget(infoLbl);
 
             buttonBox = new QDialogButtonBox(QDialogButtonBox::Abort);
             layout->addWidget(buttonBox);
@@ -83,7 +83,6 @@
                 setMaximumSize(QWIDGETSIZE_MAX, QWIDGETSIZE_MAX);
                 setSizeGripEnabled(true);
                 errorTxt = new QPlainTextEdit;
-                layout()->addWidget(errorTxt);
                 //errorTxt->setMinimumSize(380, 90);
                 errorTxt->setAcceptDrops(false);
                 errorTxt->setInputMethodHints(Qt::ImhNone);
@@ -91,6 +90,7 @@
                 errorTxt->setLineWrapMode(QPlainTextEdit::NoWrap);
                 errorTxt->setReadOnly(true);
                 errorTxt->setTextInteractionFlags(Qt::TextSelectableByMouse);
+                layout()->addWidget(errorTxt);
 
                 adjustSize();
             }
@@ -102,7 +102,7 @@
         if(!isVisible()) show();
     }
 
-    void ProgressDiag::showResult(const bool enableForce)
+    void ProgressDiag::showResult(/* OBSOLETE - const bool enableForce */)
     {
         setWindowFlag(Qt::WindowCloseButtonHint);
 
@@ -110,19 +110,24 @@
         connect(buttonBox, &QDialogButtonBox::accepted, this, &ProgressDiag::accept);
         buttonBox->setStandardButtons(QDialogButtonBox::Ok);
 
-        if(forceBtn) disconnect(forceBtn, &QPushButton::clicked, this, &ProgressDiag::forceUnmount);
+        /* OBSOLETE *
         if(enableForce)
         {
-            if(!forceBtn) forceBtn = new QPushButton(d::FORCE_X.arg(d::UNMOUNT));
-            buttonBox->addButton(forceBtn, QDialogButtonBox::ActionRole);
-            connect(forceBtn, &QPushButton::clicked, this, &ProgressDiag::forceUnmount);
+            if(!forceBtn)
+            {
+                forceBtn = new QPushButton(d::FORCE_X.arg(d::UNMOUNT));
+                buttonBox->addButton(forceBtn, QDialogButtonBox::ActionRole);
+                connect(forceBtn, &QPushButton::clicked, this, &ProgressDiag::forceUnmount);
+            }
         }
         else if(forceBtn)
         {
+            disconnect(forceBtn, &QPushButton::clicked, this, &ProgressDiag::forceUnmount);
             buttonBox->removeButton(forceBtn);
             delete forceBtn;
             forceBtn = nullptr;
         }
+        **/
 
         if(errorTxt)
         {
@@ -143,19 +148,20 @@
             emit interrupted();
             if(QMessageBox::warning(this, d::ABORT+"?", d::ARE_YOU_SURE_Xq.arg(d::ABORT),
                                     QMessageBox::Yes|QMessageBox::No) == QMessageBox::Yes)
-            {
                 emit aborted(); // calls confirmWait->wakeAll()
-            } else confirmWait->wakeAll();
+            else confirmWait->wakeAll();
         }
         else QDialog::reject();
     }
 
+    /* OBSOLETE *
     void ProgressDiag::forceUnmount()
     {
         if(QMessageBox::warning(this, d::FORCE_X.arg(d::lUNMOUNT)+"?", d::ARE_YOU_SURE_Xq.arg(d::FORCE_X).arg(d::lUNMOUNT),
                                 QMessageBox::Yes|QMessageBox::No) == QMessageBox::Yes)
             emit unmountForced();
     }
+    **/
 
 /********************************************************************/
 /*      THREAD WORKER       *****************************************/
@@ -168,9 +174,10 @@
 
         switch(action.action)
         {
-     // MOD DATA
+    // MOD DATA (data1 -> mountedMod)
         case ThreadAction::ModData:
         {
+            bool mountedFound = data1.isEmpty();
             md::modData newData;
             QStringList modNames;
 
@@ -180,10 +187,19 @@
             {
                 itMods.next();
                 const QString &modName = itMods.fileName();
+                
+                if(!mountedFound && data1 == modName) mountedFound = true;
 
                 modNames << modName;
-
-                newData.insert({ modName, md::newData(i, md::exists(modData, modName) ? md::busy(modData.at(modName)) : false )});
+                newData.insert({ modName, md::newData(i, md::exists(modData, modName) ? md::busy(modData.at(modName)) : false ) });
+            }
+            
+            if(!mountedFound)
+            {
+                modNames.insert(0, data1);
+                newData.insert({ data1, md::newData(0, false) });
+                for(int i=1; i < modNames.length(); ++i) // Renumber mods following added
+                    md::setRow(newData[modNames[i]], i);
             }
 
             emit modDataReady(newData, modNames);
@@ -191,130 +207,59 @@
             break;
         }
 
-     // SCAN
+    // SCAN
         case ThreadAction::Scan:
             scanPath(pathMods+"/"+action.modName);
             emit scanModReady(action.modName);
             break;
-
-     // SCAN MOUNTED
-        case ThreadAction::ScanMounted:
-        {
-            std::ifstream txtReader(pathOutFiles);
-            for(std::string line; std::getline(txtReader, line); ) if(line != "")
-            {
-                QFileInfo fi(QString::fromStdString(line));
-                if(fi.isSymLink() && fi.exists())
-                {
-                    const QString &linkTrgt = fi.symLinkTarget();
-                    fi = QFileInfo(linkTrgt);
-                    if(fi.isSymLink() || fi.exists()) scanPath(linkTrgt);
-                }
-            }
-
+            
+    // SCAN EXTERNAL (data1 -> modPath)
+       case ThreadAction::ScanEx:
+            scanPath(data1);
             emit scanModReady(action.modName);
-
             break;
-        }
 
-     // MOUNT
+    // MOUNT
         case ThreadAction::Mount:
-        {
-            mountModIterator();
-
-            if(outFilesIt.is_open()) outFilesIt.close();
-            if(backupFilesIt.is_open()) backupFilesIt.close();
-
+            action.add(processFile(pathMods+"/"+action.modName, pathGame+"/"+md::w3mod, Link));
             emit resultReady(action);
-
             break;
-        }
 
-     // UNMOUNT
+    // UNMOUNT
         case ThreadAction::Unmount:
         {
-            if(index > 0) modSize = index;
-            if(!data1.isEmpty()) getFileCount(data1);
-
-            std::string newOutFiles = "";
-            std::ifstream txtReader(pathOutFiles);
-            for(std::string line; std::getline(txtReader, line); checkState()) if(line != "")
+            const QString &modPath = pathGame+"/"+md::w3mod;
+            const QFileInfo &fiMounted(modPath);
+            
+            if(!fiMounted.isSymLink() && !fiMounted.exists())
+                emit progressUpdate(d::X_NOT_MOUNTED__X.arg(action.modName, d::NOTHING_UNMOUNT_), true);
+            else if(fiMounted.isSymLink())
             {
-                if(!action.aborted())
-                {
-                    const QString &qsLine = QString::fromStdString(line);
-                    const QFileInfo &fiLine(qsLine);
-                    const QString &targetPath = fiLine.symLinkTarget(); // Must be defined before calling deleteFile(qsLine)
+                const QFileInfo &fiTarget = QFileInfo(fiMounted.symLinkTarget());
+                const QFileInfo &fiNew = QFileInfo(pathGame+"/"+md::w3modX.arg(fiTarget.fileName()));
 
-                    emit progressUpdate(qsLine);
+                if(action.modName != fiTarget.fileName())
+                    emit progressUpdate(d::X_NOT_MOUNTED__X.arg(action.modName, d::UNMOUNTING_X___.arg(fiTarget.fileName())), true);
 
-                    ThreadAction::Result resultIt = ThreadAction::Failed;
-                    if(fiLine.isSymLink()) resultIt = deleteFile(qsLine);
-                    else if(!fiLine.exists())
-                    {
-                        resultIt = ThreadAction::Missing;
-                        emit progressUpdate(d::MISSING_FILE_X.arg(qsLine), true);
-                    }
-                    else emit progressUpdate(d::NOT_A_SYMLINKc_X.arg(qsLine), true);
-
-                    if(resultIt == ThreadAction::Success)
-                    {
-                        const int beforeCount = fileCount;
-                        scanPath(targetPath, true);
-                        action.add(resultIt, beforeCount-fileCount);
-                    }
-                    else
-                    {
-                        action.add(resultIt);
-                        if(!action.forced()) newOutFiles += line+"\n";
-                    }
-                }
-                else newOutFiles += line+"\n";
+                if(fiTarget.absolutePath() == pathMods || (fiNew.isSymLink() && fiNew.symLinkTarget() == fiTarget.absoluteFilePath()))
+                    action.add(processFile(modPath, pathGame, Delete));
+                else action.add(backupFile(modPath, false, pathGame+md::w3modX.arg(fiTarget.fileName()+"%0")) ? ThreadAction::Success
+                                                                                                              : ThreadAction::Failed);
             }
-            txtReader.close();
-
-            std::ofstream txtWriter(pathOutFiles);
-            txtWriter << newOutFiles;
-            txtWriter.close();
-
-            if(!action.aborted())
+            else
             {
-                emit statusUpdate(d::lRESTORING_BACKUPS___);
-
-                std::string newBackupFiles = "";
-                txtReader.open(pathBackupFiles);
-                for(std::string line; std::getline(txtReader, line); checkState()) if(line != "")
-                {
-                    if(!action.aborted())
-                    {
-                        const QString &qsLine = QString::fromStdString(line);
-                        QString dst = qsLine;
-                        dst.truncate(dst.lastIndexOf(extBackup));
-
-                        emit progressUpdate(QFileInfo(qsLine).fileName());
-
-                        const ThreadAction::Result &resultIt = processFile(qsLine, dst);
-
-                        action.add(resultIt);
-                        if(!action.forced() && resultIt != ThreadAction::Success) newBackupFiles += line+"\n";
-                    }
-                    else newBackupFiles += line+"\n";
-                }
-                txtReader.close();
-
-                txtWriter.open(pathBackupFiles);
-                txtWriter << newBackupFiles;
-                txtWriter.close();
-
-                emit statusUpdate(QString());
+                if(action.modName != md::unknownMod)
+                    emit progressUpdate(d::X_NOT_MOUNTED__X.arg(action.modName, d::UNMOUNTING_X___.arg(d::lUNKNOWN_MOD)), true);
+                action.add(backupFile(modPath, false, pathGame+md::w3modX.arg(d::lUNKNOWN+"%0")) ? ThreadAction::Success
+                                                                                                 : ThreadAction::Failed);
             }
-
+            
             emit resultReady(action);
-
+            
             break;
         }
 
-     // ADD
+     // ADD (index, data1, data2 -> (bool)copy, src, dst)
         case ThreadAction::Add:
         {
             bool created = false;
@@ -328,7 +273,7 @@
 
                 emit progressUpdate(relativePath);
 
-                ThreadAction::Result result = processFile(srcItr.filePath(), itrDst, ThreadWorker::Mode(index));
+                ThreadAction::Result result = processFile(srcItr.filePath(), itrDst, index ? Mode::Copy : Mode::Move);
                 action.add(result);
 
                 if(result == ThreadAction::Success)
@@ -357,7 +302,7 @@
             break;
         }
 
-     // DELETE
+     // DELETE (index, data1 -> size, fileCount)
         case ThreadAction::Delete:
         {
             if(index > 0) modSize = index;
@@ -375,7 +320,7 @@
 
                 scanFile(filePath, true, true); // Silently remove file from data
 
-                ThreadAction::Result result = deleteFile(filePath, pathMods);
+                ThreadAction::Result result = processFile(filePath, pathMods, ThreadWorker::Delete);
                 action.add(result);
 
                 if(result != ThreadAction::Success && (itMod.fileInfo().isSymLink() || itMod.fileInfo().exists()))
@@ -384,19 +329,14 @@
                 emit scanModUpdate(action.modName, getMB(), d::X_FILES.arg(fileCount), modSize); // Data is up to date
             }
 
-            if(QFileInfo().exists(pathMod) && !QDir().rmdir(pathMod))
-            {
-                action.add(ThreadAction::Failed);
-                emit progressUpdate(d::FAILED_TO_X.arg(d::lDELETE_X).arg(d::lFOLDER)+": "+pathMod, true);
-            }
-            else emit modDeleted(action.modName);
+            if(!QFileInfo().exists(pathMod)) emit modDeleted(action.modName);
 
             emit resultReady(action);
 
             break;
         }
 
-     // SHORTCUT
+     // SHORTCUT (index, data1, data2, args -> iconIndex, dst, iconPath, args)
         case ThreadAction::Shortcut:
         {
             // Using QProcess because winAPI method requires ~7MB of libraries
@@ -428,8 +368,127 @@
      // (no action)
         case ThreadAction::NoAction:;
         }
+
+        /********************************************************************/
+        /*      OBSOLETE - may be useful later      *************************/
+        /********************************************************************
+
+            case ThreadAction::ScanMounted:
+            {
+                std::ifstream txtReader(pathOutFiles);
+                for(std::string line; std::getline(txtReader, line); ) if(line != "")
+                {
+                    QFileInfo fi(QString::fromStdString(line));
+                    if(fi.isSymLink() && fi.exists())
+                    {
+                        const QString &linkTrgt = fi.symLinkTarget();
+                        fi = QFileInfo(linkTrgt);
+                        if(fi.isSymLink() || fi.exists()) scanPath(linkTrgt);
+                    }
+                }
+
+                emit scanModReady(action.modName);
+
+                break;
+            }
+
+            case ThreadAction::Mount:
+            {
+                mountModIterator();
+
+                if(outFilesIt.is_open()) outFilesIt.close();
+                if(backupFilesIt.is_open()) backupFilesIt.close();
+
+                emit resultReady(action);
+
+                break;
+            }
+
+            case ThreadAction::Unmount:
+            {
+                if(index > 0) modSize = index;
+                if(!data1.isEmpty()) getFileCount(data1);
+
+                std::string newOutFiles = "";
+                std::ifstream txtReader(pathOutFiles);
+                for(std::string line; std::getline(txtReader, line); checkState()) if(line != "")
+                {
+                    if(!action.aborted())
+                    {
+                        const QString &qsLine = QString::fromStdString(line);
+                        const QFileInfo &fiLine(qsLine);
+                        const QString &targetPath = fiLine.symLinkTarget(); // Must be defined before calling deleteFile(qsLine)
+
+                        emit progressUpdate(qsLine);
+
+                        ThreadAction::Result resultIt = ThreadAction::Failed;
+                        if(fiLine.isSymLink()) resultIt = processFile(qsLine, QString(), ThreadWorker::Delete);
+                        else if(!fiLine.exists())
+                        {
+                            resultIt = ThreadAction::Missing;
+                            emit progressUpdate(d::MISSING_FILE_X.arg(qsLine), true);
+                        }
+                        else emit progressUpdate(d::NOT_A_SYMLINKc_X.arg(qsLine), true);
+
+                        if(resultIt == ThreadAction::Success)
+                        {
+                            const int beforeCount = fileCount;
+                            scanPath(targetPath, true);
+                            action.add(resultIt, beforeCount-fileCount);
+                        }
+                        else
+                        {
+                            action.add(resultIt);
+                            if(!action.forced()) newOutFiles += line+"\n";
+                        }
+                    }
+                    else newOutFiles += line+"\n";
+                }
+                txtReader.close();
+
+                std::ofstream txtWriter(pathOutFiles);
+                txtWriter << newOutFiles;
+                txtWriter.close();
+
+                if(!action.aborted())
+                {
+                    emit statusUpdate(d::lRESTORING_BACKUPS___);
+
+                    std::string newBackupFiles = "";
+                    txtReader.open(pathBackupFiles);
+                    for(std::string line; std::getline(txtReader, line); checkState()) if(line != "")
+                    {
+                        if(!action.aborted())
+                        {
+                            const QString &qsLine = QString::fromStdString(line);
+                            QString dst = qsLine;
+                            dst.truncate(dst.lastIndexOf(extBackup));
+
+                            emit progressUpdate(QFileInfo(qsLine).fileName());
+
+                            if(processFile(qsLine, dst) != ThreadAction::Success && !action.forced()) newBackupFiles += line+"\n";
+                        }
+                        else newBackupFiles += line+"\n";
+                    }
+                    txtReader.close();
+
+                    txtWriter.open(pathBackupFiles);
+                    txtWriter << newBackupFiles;
+                    txtWriter.close();
+
+                    emit statusUpdate(QString());
+                }
+
+                emit resultReady(action);
+
+                break;
+            }
+         ********************************************************************/
+        /********************************************************************/
+        /********************************************************************/
     }
 
+    /* OBSOLETE *
     void ThreadWorker::forceUnmount()
     {
         if(action == ThreadAction::Unmount)
@@ -438,6 +497,7 @@
             init();
         }
     }
+    **/
 
     void ThreadWorker::checkState()
     {
@@ -476,41 +536,6 @@
         fileCount = qsFileCount.toInt();
     }
 
-    void ThreadWorker::mountModIterator(QString relativePath)
-    {
-        for(QDirIterator itMod(pathMods+"/"+action.modName+(!relativePath.isEmpty() ? "/"+relativePath : QString()),
-                               QDir::NoDotAndDotDot|QDir::AllEntries|QDir::Hidden|QDir::System);
-            !action.aborted() && itMod.hasNext();
-            checkState())
-        {
-            itMod.next();
-            const QString &src = itMod.filePath();
-            relativePath = src;
-            relativePath.remove(pathMods+"/"+action.modName+"/");
-            const QString &dst = pathGame+"/"+relativePath;
-            const QFileInfo &fiDst = QFileInfo(dst);
-
-            if(!fiDst.isSymLink() && fiDst.exists() && fiDst.isDir()) mountModIterator(relativePath);
-            else
-            {
-                emit progressUpdate(relativePath);
-
-                const ThreadAction::Result &resultIt = processFile(src, dst, Link, true);
-
-                if(resultIt == ThreadAction::Success)
-                {
-                    if(!outFilesIt.is_open()) outFilesIt.open(pathOutFiles);
-                    outFilesIt << dst.toStdString() << std::endl;
-
-                    const int beforeCount = fileCount;
-                    scanPath(src);
-                    action.add(resultIt, fileCount-beforeCount);
-                }
-                else action.add(resultIt);
-            }
-        }
-    }
-
     qint64 ThreadWorker::scanFile(const QFileInfo &fi, const bool subtract, const bool silent)
     {
         qint64 size = 0;
@@ -532,7 +557,7 @@
                 if(processFile(filePath, tmpPath, Mode::Copy) == ThreadAction::Success)
                 {
                     size = QFileInfo(tmpPath).size();
-                    deleteFile(tmpPath);
+                    processFile(tmpPath, QString(), ThreadWorker::Delete);
                 }
             }
         }
@@ -563,79 +588,76 @@
         {
             QFileInfo fiDst(dst);
             //if dst exists, make backup
-            if(fiDst.isSymLink() || fiDst.exists())
+            if(mode != Delete && (fiDst.isSymLink() || fiDst.exists()))
             {
-                QString backupPath = dst+extBackup;
-                for(int i=2; QFileInfo().exists(backupPath); ++i)
-                    backupPath = dst+extBackup+QString::number(i);
-
-                if(QFile::rename(dst, backupPath))
-                {
-                    if(logBackups)
-                    {
-                        if(!backupFilesIt.is_open()) backupFilesIt.open(pathBackupFiles);
-                        backupFilesIt << backupPath.toStdString() << std::endl;
-                    }
-                }
-                else
+                if(!backupFile(dst, logBackups))
                 {
                     emit progressUpdate(d::FAILED_TO_CREATE_BACKUP_X.arg(dst)+"\n"+d::SKIPPING_FILE_X.arg(src), true);
                     return ThreadAction::Failed;
                 }
             }
-            else QDir().mkpath(fiDst.absolutePath());
+            else if(!dst.isEmpty()) QDir().mkpath(fiDst.absolutePath());
 
             switch(mode)
             {
-            case Copy:
-                if(QFile::copy(src, dst)) result = ThreadAction::Success;
-                break;
             case Link:
                 if(CreateSymbolicLink(QDir::toNativeSeparators(dst).toStdWString().c_str(),
                                       QDir::toNativeSeparators(src).toStdWString().c_str(),
                                       fiSrc.isDir() ? SYMBOLIC_LINK_FLAG_DIRECTORY : 0x0))
                     result = ThreadAction::Success;
                 break;
-            default:
+            case Move:
                 if(QFile::rename(src, dst))
                 {
                     result = ThreadAction::Success;
                     removePath(fiSrc.absolutePath());
                 }
+                break;
+            case Copy:
+                if(QFile::copy(src, dst)) result = ThreadAction::Success;
+                break;
+            case Delete:
+                if((fiSrc.isFile() && QFile(src).remove())
+                    || (fiSrc.isSymLink() && fiSrc.isDir() && QDir().rmdir(src)))
+                {
+                    result = ThreadAction::Success;
+                    removePath(fiSrc.absolutePath(), dst);
+                }
             }
         }
-        else if(!src.isEmpty() && !fiSrc.isSymLink() && !fiSrc.exists())
+        else
         {
             result = ThreadAction::Missing;
             emit progressUpdate(d::MISSING_FILE_X.arg(src), true);
         }
 
         if(result == ThreadAction::Failed)
-            emit progressUpdate(d::FAILED_TO_X.arg((mode == Copy ? d::lCOPY : mode == Link ? d::lCREATE_SYMLINK_TO : d::lMOVE)
+            emit progressUpdate(d::FAILED_TO_X.arg((mode == Copy ? d::lCOPY : mode == Link ? d::lCREATE_SYMLINK_TO
+                                                    : mode == Delete ? d::lDELETE : d::lMOVE)
                                                    +" "+d::lFILEc_X.arg(src)), true);
 
         return result;
     }
-
-    ThreadAction::Result ThreadWorker::deleteFile(const QString &path, const QString &stopPath)
+    
+    bool ThreadWorker::backupFile(const QString &src, const bool logBackups, QString dstMarked)
     {
-        const QFileInfo &fileInfo(path);
-        if(!fileInfo.isSymLink() && !fileInfo.exists())
+        if(dstMarked.isEmpty()) dstMarked = src+extBackup+"%0";
+        QString backupPath = dstMarked.arg(QString());
+
+        for(int i=2; QFileInfo().exists(backupPath); ++i)
+            backupPath = dstMarked.arg(QString::number(i));
+
+        if(QFile::rename(src, backupPath))
         {
-            emit progressUpdate(d::MISSING_FILE_X.arg(path), true);
-            return ThreadAction::Missing;
+            if(logBackups)
+            {
+                if(!backupFilesIt.is_open()) backupFilesIt.open(pathBackupFiles);
+                backupFilesIt << backupPath.toStdString() << std::endl;
+            }
+            
+            return true;
         }
-        else if((fileInfo.isFile() && QFile(path).remove())
-                || (fileInfo.isSymLink() && fileInfo.isDir() && QDir().rmdir(path)))
-        {
-            removePath(fileInfo.absolutePath(), stopPath);
-            return ThreadAction::Success;
-        }
-        else
-        {
-            emit progressUpdate(d::FAILED_TO_X.arg(d::lDELETE_X).arg(d::lFILEc_X).arg(path), true);
-            return ThreadAction::Failed;
-        }
+        else return false;
     }
 
     void ThreadWorker::removePath(const QString &path, const QString &stopPath)
@@ -652,12 +674,53 @@
                && delPath != pathGame
                && (!stopPath.isEmpty() || dirEmpty.absolutePath() != pathMods))
             {
-                if(!QDir().rmdir(delPath))
-                    emit progressUpdate(d::FAILED_TO_DELETE_EMPTY_FOLDERc_X_.arg(delPath), true);
+                if(!QDir().rmdir(delPath)) emit progressUpdate(d::FAILED_TO_DELETE_EMPTY_FOLDERc_X_.arg(delPath), true);
             }
             else break;
         }
     }
+
+    /********************************************************************/
+    /*      OBSOLETE - may be useful later      *************************/
+    /********************************************************************
+
+        void ThreadWorker::mountModIterator(QString relativePath)
+        {
+            for(QDirIterator itMod(pathMods+"/"+action.modName+(!relativePath.isEmpty() ? "/"+relativePath : QString()),
+                                   QDir::NoDotAndDotDot|QDir::AllEntries|QDir::Hidden|QDir::System);
+                !action.aborted() && itMod.hasNext();
+                checkState())
+            {
+                itMod.next();
+                const QString &src = itMod.filePath();
+                relativePath = src;
+                relativePath.remove(pathMods+"/"+action.modName+"/");
+                const QString &dst = pathGame+"/"+relativePath;
+                const QFileInfo &fiDst = QFileInfo(dst);
+
+                if(!fiDst.isSymLink() && fiDst.exists() && fiDst.isDir()) mountModIterator(relativePath);
+                else
+                {
+                    emit progressUpdate(relativePath);
+
+                    const ThreadAction::Result &resultIt = processFile(src, dst, Link, true);
+
+                    if(resultIt == ThreadAction::Success)
+                    {
+                        if(!outFilesIt.is_open()) outFilesIt.open(pathOutFiles);
+                        outFilesIt << dst.toStdString() << std::endl;
+
+                        const int beforeCount = fileCount;
+                        scanPath(src);
+                        action.add(resultIt, fileCount-beforeCount);
+                    }
+                    else action.add(resultIt);
+                }
+            }
+        }
+     ********************************************************************/
+    /********************************************************************/
+    /********************************************************************/
 
 /********************************************************************/
 /*      THREAD CONTROLLER       *************************************/
@@ -665,12 +728,11 @@
 
     Thread::Thread(const ThreadAction::Action &thrAction, const QString &modName,
                    const QString &pathMods, const QString &pathGame, Msgr *const msgr)
-        : ThreadBase(),
-          action(ThreadAction(thrAction, modName))
+        : ThreadBase(), action(ThreadAction(thrAction, modName))
     {
         if(action == ThreadAction::NoAction)
         {
-            qDebug() << "Thread::action == ThreadAction::NoAction\nDeleting Thread.";
+            qDebug() << "Thread::Thread: ThreadAction::NoAction -- deleting Thread.";
             if(msgr) emit msgr->msg(d::INVALID_ACTION_, Msgr::Error);
             deleteLater();
         }
@@ -689,7 +751,7 @@
                 connect(worker, &ThreadWorker::modDataReady, this, &Thread::modDataReady);
                 connect(worker, &ThreadWorker::modDataReady, this, &Thread::deleteLater);
                 break;
-            case ThreadAction::Scan: case ThreadAction::ScanMounted:
+            case ThreadAction::Scan: case ThreadAction::ScanEx:
                 connect(worker, &ThreadWorker::scanModReady, this, &Thread::scanModReady);
                 connect(worker, &ThreadWorker::scanModReady, this, &Thread::deleteLater);
                 break;
@@ -714,14 +776,13 @@
                 connect(progressDiag, &ProgressDiag::interrupted, this, &Thread::pause);
                 connect(progressDiag, &ProgressDiag::aborted,     this, &Thread::abort);
 
+                /* OBSOLETE *
                 if(action == ThreadAction::Unmount)
                     connect(progressDiag, &ProgressDiag::unmountForced, worker, &ThreadWorker::forceUnmount);
-                else if(action == ThreadAction::Add)
+                else **/if(action == ThreadAction::Add)
                     connect(worker, &ThreadWorker::modAdded, this, &Thread::modAdded);
                 else if(action == ThreadAction::Delete)
                     connect(worker, &ThreadWorker::modDeleted, this, &Thread::modDeleted);
-
-                progressDiag->show();
             }
 
             workerThread.start();
@@ -760,7 +821,7 @@
         {
             progressDiag->disableAbort();
 
-            if(!action.errors()) progressDiag->close();
+            if(!action.errors() && !progressDiag->errors()) progressDiag->close();
             else
             {
                 deleteThread = false;
@@ -768,12 +829,14 @@
                 connect(progressDiag, &ProgressDiag::rejected, this, &Thread::deleteLater);
 
                                          // show Force button? (only as last resort)
-                progressDiag->showResult(!action.forced() && !action.aborted() && !action.get(ThreadAction::Success)
-                                         && action == ThreadAction::Unmount);
+                progressDiag->showResult(/* OBSOLETE - !action.forced() && !action.aborted() && !action.get(ThreadAction::Success)
+                                         && action == ThreadAction::Unmount */);
 
-                progressDiag->appendStatus(action.aborted()                      ? d::lABORTED+"."
-                                           : action.forced() || action.success() ? d::lDONE_
-                                                                                 : d::lFAILED+".");
+                progressDiag->appendStatus(action.aborted()                             ? d::lABORTED+"."
+                                           : /*action.forced() || */action.success() ?
+                                                 /*action.forced() || */action.errors() ? d::lFINISHED_WITH_ERRORS
+                                                                                        : d::lDONE_
+                                                                                        : d::lFAILED+".");
 
                 progressDiag->showProgress(d::X_FILES_SUCCEEDED.arg(action.get(ThreadAction::Success))
                                            +(action.get(ThreadAction::Failed)

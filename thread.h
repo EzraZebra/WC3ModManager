@@ -17,36 +17,23 @@ class Thread : public ThreadBase
                ThreadAction   action;
                bool paused=false;
 
-public:        // Scan, ScanMounted, Mount, Unmount, Delete
-               Thread(const ThreadAction::Action &thrAction, const QString &modName,
+public:        Thread(const ThreadAction::Action &thrAction, const QString &modName, // Scan, Mount, Unmount, Add, Delete
                       const QString &pathMods, const QString &pathGame=QString(), Msgr *const msgr=nullptr);
-
-               // Scan, ScanMounted, Mount
-               void start() { emit init(); }
-
-               // Unmount, Delete
-               void start(const qint64 size, const QString &fileCount)
-               { emit init(size, fileCount); }
-
-               // Add
-               void start(const QString &src, const QString &dst, const Mode &mode)
-               { emit init(mode, src, dst); }
-
-               // ModData
-               Thread(const ThreadAction::Action &thrAction, const QString &pathMods)
-                   : Thread(thrAction, QString(), pathMods) {}
-
-               void start(const md::modData &modData)
-               { emit init(0, QString(), QString(), QString(), modData); }
-
-               // Shortcut
-               Thread(const ThreadAction::Action &thrAction, Msgr *const msgr)
+               Thread(const ThreadAction::Action &thrAction, const QString &modName) // ScanEx
+                   : Thread(thrAction, modName, QString()) {}
+               Thread(const ThreadAction::Action &thrAction, Msgr *const msgr)       // Shortcut
                    : Thread(thrAction, QString(), QString(), QString(), msgr) {}
-
-               void start(const QString &dst, const QString &args, const QString &iconPath, const int iconIndex)
-               { emit init(iconIndex, dst, iconPath, args); }
-
+               
                ~Thread();
+
+               void start() { emit init(); }                                                                      // Scan, Mount, Unmount
+               void start(const md::modData &modData, const QString &mountedMod)                                  // ModData
+               { emit init(0, mountedMod, QString(), QString(), modData); }
+               void start(const QString &modPath) { emit init(0, modPath); }                                      // ScanEx
+               void start(const QString &src, const QString &dst, const bool copy) { emit init(copy, src, dst); } // Add
+               void start(const qint64 size, const QString &fileCount) { emit init(size, fileCount); }            // Delete
+               void start(const QString &dst, const QString &args, const QString &iconPath, const int iconIndex)  // Shortcut
+               { emit init(iconIndex, dst, iconPath, args); }
 
 signals:       void init(const qint64 index=0, const QString &data1=QString(), const QString &data2=QString(),
                          const QString &args=QString(), const md::modData &modData={});

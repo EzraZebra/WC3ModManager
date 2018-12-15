@@ -2,8 +2,8 @@
 #include "_utils.h"
 #include "_msgr.h"
 #include "thread.h"
-#include "shortcuts.h"
-#include "shortcuts_pvt.h"
+#include "dg_shortcuts.h"
+#include "dg_shortcuts_pvt.h"
 
 #include <QMouseEvent>
 #include <QLineEdit>

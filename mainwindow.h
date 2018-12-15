@@ -17,67 +17,31 @@ class QTableWidgetItem;
 
 #include <QDebug>
 
-class ModNameItem : public QFrame
-{
-    Q_OBJECT
-
-public: QLabel *icon;
-        explicit ModNameItem(const QString &modName);
-};
-
-class ModDataItem : public QFrame
-{
-    Q_OBJECT
-
-        const QString zero;
-
-        QLabel *totalTitle, *mountedTitle;
-public: QLabel *totalData,  *mountedData;
-
-        explicit ModDataItem(const QString &zero, const bool alignRight=false);
-
-        bool updateView(const QString &total, const QString &mounted);
-        bool updateData(const QString &data, const bool isMounted);
-};
-
 class ModTable : public QTableWidget
 {
     Q_OBJECT
 
-public:       static const int modItemMrg = 2;
+public:        md::modData modData;
+               QStringList modNames;
 
-              md::modData modData;
-              QStringList modNames;
-              qint64 mountedSize = 0;
+               ModTable();
 
-              ModTable();
+               QLabel* cellLabel(const int row, const int column) const;
 
-              ModDataItem* dataItem(const int row, const bool files) const
-              { return dynamic_cast<ModDataItem *>(cellWidget(row, 1+files)); }
+               bool modSelected() const { return currentRow() >= 0 && currentRow() < rowCount(); }
 
-              ModNameItem* nameItem(const int row) const
-              { return dynamic_cast<ModNameItem *>(cellWidget(row, 0)); }
+               int row(const QString &modName) const
+               { return md::exists(modData, modName) ? std::get<int(md::Row)>(modData.at(modName)) : -1; }
+               void setSize(const QString &modName, const qint64 size)
+               { std::get<int(md::Size)>(modData[modName]) = size; }
+               void setIdle(const QString &modName)
+               { if(md::exists(modData, modName)) std::get<int(md::Busy)>(modData[modName]) = false; }
 
-              int row(const QString &modName) const
-              { return md::exists(modData, modName) ? std::get<int(md::Row)>(modData.at(modName)) : -1; }
-              void setSize(const QString &modName, const qint64 size)
-              { std::get<int(md::Size)>(modData[modName]) = size; }
+public slots:  void updateMod    (const QString &modName, const QString &modSize, const QString &fileCount, const qint64 size);
+               void addMod       (const QString &modName, const int row, const bool addData=false);
+               void deleteMod    (const QString &modName);
 
-              bool tryBusy(const QString &modName);
-              void setIdle(const QString &modName)
-              { if(md::exists(modData, modName)) std::get<int(md::Busy)>(modData[modName]) = false; }
-
-              void resizeCR(const int row=-1);
-              bool modSelected() const { return currentRow() >= 0 && currentRow() < rowCount(); }
-
-private:      void updateMod    (const QString &modName, const QString &modSize, const QString &fileCount,
-                                 const qint64 size, const bool isMounted);
-public slots: void addMod       (const QString &modName, const int row, const bool addData=false);
-              void deleteMod    (const QString &modName);
-              void updateTotal  (const QString &modName, const QString &modSize, const QString &fileCount, const qint64 size)
-              { updateMod(modName, modSize, fileCount, size, false); }
-              void updateMounted(const QString &modName, const QString &modSize, const QString &fileCount, const qint64 size)
-              { updateMod(modName, modSize, fileCount, size, true); }
+               void resizeCR(const int row=-1);
 };
 
 class MainWindow : public QMainWindow
@@ -108,25 +72,24 @@ public:        explicit MainWindow(Core *const core);
 private slots: void showStatus(const QString &msg, const Msgr::Type &msgType=Msgr::Default);
 private:       void showMsg   (const QString &msg, const Msgr::Type &msgType=Msgr::Default);
 
-               bool modSelected();
                bool tryBusy(const QString &modName);
 
                void updateLaunchBtns();
                void updateAllowOrVersion(const bool version=false);
-               void updateMountState(const QString &modName=QString());
+               void updateMountState(const QString &modName=QString(), const bool enableBtn=true);
 private slots: void launchEditor();
                void setAllowOrVersion(const bool enable, const bool version=false);
                void setVersion(const bool enable){ setAllowOrVersion(enable, true); }
 
                void refresh(const bool silent=false);
-               void modDataReady(const md::modData &modData, const QStringList &modNames);
+               void scanMods(const md::modData &modData, const QStringList &modNames);
                void scanModDone(const QString &modName);
 
                void mountMod();
                void unmountMod();
                void addMod();
                void deleteMod();
-               void actionReady(const ThreadAction &action);
+               void actionDone(const ThreadAction &action);
 
                void renameModAction();
                void renameModStart(QTableWidgetItem *item);
@@ -143,3 +106,29 @@ private slots: void launchEditor();
 };
 
 #endif // MAINWINDOW_H
+
+/********************************************************************/
+/*      OBSOLETE - may be useful later      *************************/
+/********************************************************************
+
+    class ModDataItem : public QFrame
+    {
+        Q_OBJECT
+
+                  const QString zero;
+                  const int row;
+                  bool detailsVisible = false;
+                  QTimer *timer;
+
+                  QLabel *totalTitle, *mountedTitle;
+    public:       QLabel *totalData,  *mountedData;
+
+                  explicit ModDataItem(const int row, const QString &zero, const bool alignRight=false);
+
+                  void updateData(const QString &data, const bool isMounted);
+    public slots: void updateView();
+    signals:      void viewUpdated(const int row);
+    }
+ ********************************************************************/
+/********************************************************************/
+/********************************************************************/
