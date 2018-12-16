@@ -243,14 +243,14 @@
 
                 if(fiTarget.absolutePath() == pathMods || (fiNew.isSymLink() && fiNew.symLinkTarget() == fiTarget.absoluteFilePath()))
                     action.add(processFile(modPath, pathGame, Delete));
-                else action.add(backupFile(modPath, false, pathGame+md::w3modX.arg(fiTarget.fileName()+"%0")) ? ThreadAction::Success
+                else action.add(backup(modPath, false, pathGame+"/"+md::w3modX.arg(fiTarget.fileName()+"%0")) ? ThreadAction::Success
                                                                                                               : ThreadAction::Failed);
             }
             else
             {
                 if(action.modName != md::unknownMod)
                     emit progressUpdate(d::X_NOT_MOUNTED__X.arg(action.modName, d::UNMOUNTING_X___.arg(d::lUNKNOWN_MOD)), true);
-                action.add(backupFile(modPath, false, pathGame+md::w3modX.arg(d::lUNKNOWN+"%0")) ? ThreadAction::Success
+                action.add(backup(modPath, false, pathGame+"/"+md::w3modX.arg(d::lUNKNOWN+"%0")) ? ThreadAction::Success
                                                                                                  : ThreadAction::Failed);
             }
             
@@ -590,7 +590,7 @@
             //if dst exists, make backup
             if(mode != Delete && (fiDst.isSymLink() || fiDst.exists()))
             {
-                if(!backupFile(dst, logBackups))
+                if(!backup(dst, logBackups))
                 {
                     emit progressUpdate(d::FAILED_TO_CREATE_BACKUP_X.arg(dst)+"\n"+d::SKIPPING_FILE_X.arg(src), true);
                     return ThreadAction::Failed;
@@ -639,7 +639,7 @@
         return result;
     }
     
-    bool ThreadWorker::backupFile(const QString &src, const bool logBackups, QString dstMarked)
+    bool ThreadWorker::backup(const QString &src, const bool logBackups, QString dstMarked)
     {
         if(dstMarked.isEmpty()) dstMarked = src+extBackup+"%0";
         QString backupPath = dstMarked.arg(QString());

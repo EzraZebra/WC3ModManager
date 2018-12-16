@@ -217,9 +217,9 @@ static const QString
     PROCESSING_ARGUMENTS___ = QStringLiteral(u"%0...").arg(X_X).arg(PROCESSING, lARGUMENTS),
 
     // RENAME
-    RENAME          = QStringLiteral(u"Rename"),
-    lRENAME         = QStringLiteral(u"rename"),
-    X_RENAMED_X_    = QStringLiteral(u"%0 renamed to %1."),
+    RENAME              = QStringLiteral(u"Rename"),
+    lRENAME             = QStringLiteral(u"rename"),
+    X_RENAMED_X_        = QStringLiteral(u"%0 renamed to %1."),
 
     ABORT           = QStringLiteral(u"Abort"),
     lABORTED        = QStringLiteral(u"aborted"),

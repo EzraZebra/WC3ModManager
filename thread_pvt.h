@@ -90,7 +90,7 @@ private:      void    checkState();
 
               ThreadAction::Result processFile(const QString &src, const QString &dst,
                                                const Mode &mode=Move, const bool logBackups=false);
-              bool backupFile(const QString &src, const bool logBackups=false, QString dstMarked=QString());
+              bool backup(const QString &src, const bool logBackups=false, QString dstMarked=QString());
               void removePath(const QString &path, const QString &stopPath=QString());
 
 signals:      void progressUpdate(const QString &msg, const bool error=false);

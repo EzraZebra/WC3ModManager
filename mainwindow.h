@@ -37,9 +37,10 @@ public:        md::modData modData;
                void setIdle(const QString &modName)
                { if(md::exists(modData, modName)) std::get<int(md::Busy)>(modData[modName]) = false; }
 
-public slots:  void updateMod    (const QString &modName, const QString &modSize, const QString &fileCount, const qint64 size);
-               void addMod       (const QString &modName, const int row, const bool addData=false);
-               void deleteMod    (const QString &modName);
+public slots:  void updateMod(const QString &modName, const QString &modSize, const QString &fileCount, const qint64 size);
+               void addMod   (const QString &modName, const int row, const bool addData=false);
+               void deleteMod(const QString &modName);
+               void renameMod(const QString &modName, const QString &newName);
 
                void resizeCR(const int row=-1);
 };
@@ -51,6 +52,8 @@ class MainWindow : public QMainWindow
                QAction      *launchGameAc, *launchEditorAc, *toggleMountAc;
                QCheckBox    *allowFilesCbx, *gameVersionCbx;
                QPushButton  *toggleMountBtn, *addModBtn, *refreshBtn;
+               QDialog      *renameDg;
+               QLineEdit    *renameEdit;
                QLabel       *statusLbl=nullptr;
 
                Core *const core;
@@ -63,9 +66,6 @@ class MainWindow : public QMainWindow
                int  scanCount=0;
                bool refreshing=false;
 
-               QTableWidgetItem *renameModItem;
-               QString           renameModName;
-
 public:        explicit MainWindow(Core *const core);
                void show();
 
@@ -73,6 +73,7 @@ private slots: void showStatus(const QString &msg, const Msgr::Type &msgType=Msg
 private:       void showMsg   (const QString &msg, const Msgr::Type &msgType=Msgr::Default);
 
                bool tryBusy(const QString &modName);
+               bool isExternal(const QString &modName);
 
                void updateLaunchBtns();
                void updateAllowOrVersion(const bool version=false);
@@ -91,9 +92,9 @@ private slots: void launchEditor();
                void deleteMod();
                void actionDone(const ThreadAction &action);
 
-               void renameModAction();
-               void renameModStart(QTableWidgetItem *item);
-               void renameModSave (QTableWidgetItem *item);
+               void renameMod();
+               void renameModSave();
+               void renameModDone();
 
                void openFolder(const QString &path, const QString &name, QString lName=QString());
                void openGameFolder();

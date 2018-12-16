@@ -21,6 +21,7 @@
 #include <QDesktopServices>
 #include <QDialogButtonBox>
 #include <QTimer>
+#include <QLineEdit>
 
 #include <winerror.h>
 
@@ -133,6 +134,23 @@
 
             if(resize) resizeCR(row);
             if(focus) setFocus();
+        }
+    }
+
+    void ModTable::renameMod(const QString &modName, const QString &newName)
+    {
+        if(md::exists(modData, modName))
+        {
+            const int row = this->row(modName);
+
+            modNames[row] = newName;
+
+            const md::data &data = modData[modName];
+            modData.erase(modName);
+            modData.insert({ newName, data });
+
+            cellLabel(row, 0)->setText(newName);
+            resizeCR();
         }
     }
 
@@ -254,7 +272,7 @@ MainWindow::MainWindow(Core *const core) : QMainWindow(),
     connect(refreshBtn,     SIGNAL(clicked()),           SLOT(refresh()));
     // MOD LIST
     connect(actionOpen,   &QAction::triggered, this, &MainWindow::openModFolder);
-    connect(actionRename, &QAction::triggered, this, &MainWindow::renameModAction);
+    connect(actionRename, &QAction::triggered, this, &MainWindow::renameMod);
     connect(actionDelete, &QAction::triggered, this, &MainWindow::deleteMod);
 }
 
@@ -292,6 +310,12 @@ bool MainWindow::tryBusy(const QString &modName)
         showMsg(d::X_BUSY.arg(modName), Msgr::Info);
         return false;
     }
+}
+
+bool MainWindow::isExternal(const QString &modName)
+{
+    const QFileInfo &fiMod(core->cfg.pathMods+"/"+modName);
+    return modName == md::unknownMod || (!fiMod.isSymLink() && !fiMod.exists());
 }
 
 void MainWindow::updateLaunchBtns()
@@ -643,8 +667,7 @@ void MainWindow::actionDone(const ThreadAction &action)
         {
             const QFileInfo &fiMod(core->cfg.pathMods+"/"+action.modName);
 
-            if(action.modName == md::unknownMod || (!fiMod.isSymLink() && !fiMod.exists()))
-                modTable->deleteMod(action.modName);
+            if(isExternal(action.modName)) modTable->deleteMod(action.modName);
         }
     }
     else showMsg(Core::a2s(action));
@@ -652,78 +675,57 @@ void MainWindow::actionDone(const ThreadAction &action)
     modTable->setIdle(action.modName);
 }
 
-void MainWindow::renameModAction()
+void MainWindow::renameMod()
 {
     if(!modTable->modSelected()) showMsg(d::NO_MOD_X_.arg(d::lSELECTED));
     else
     {
-        QLabel *name = modTable->cellLabel(modTable->currentRow(), 0);
-        const QString &modName = name->text();
+        const QString &modName = modTable->cellLabel(modTable->currentRow(), 0)->text();
 
-        if(modName == core->mountedMod)
-            showMsg(d::CANT_X_MOUNTED_.arg(d::lRENAME), Msgr::Info);
+        if(modName == core->mountedMod) showMsg(d::CANT_X_MOUNTED_.arg(d::lRENAME), Msgr::Info);
         else if(tryBusy(modName))
         {
-            name->setTextInteractionFlags(Qt::TextEditorInteraction);
-            name->setCursor(Qt::IBeamCursor);
-            name->setSelection(0, name->text().length());
-            name->setFocus();
+            renameDg = new QDialog(this, Qt::MSWindowsFixedSizeDialogHint);
+            renameDg->setWindowTitle(d::RENAME+" "+modName);
+            renameDg->setFixedWidth(220);
+            QVBoxLayout *renameLayout = new QVBoxLayout;
+            renameDg->setLayout(renameLayout);
+                renameEdit = new QLineEdit(modName);
+                renameLayout->addWidget(renameEdit);
+                renameEdit->selectAll();
+                QDialogButtonBox *buttonBox = new QDialogButtonBox(QDialogButtonBox::Ok|QDialogButtonBox::Cancel);
+                renameLayout->addWidget(buttonBox);
+
+            connect(renameDg,  &QDialog::rejected,          this, &MainWindow::renameModDone);
+            connect(buttonBox, &QDialogButtonBox::rejected, this, &MainWindow::renameModDone);
+            connect(buttonBox, &QDialogButtonBox::accepted, this, &MainWindow::renameModSave);
+
+            renameDg->exec();
+            delete renameDg;
         }
     }
-   // if(modSelected()) renameModStart(modList->item(modList->currentRow(), 0));
 }
 
-void MainWindow::renameModStart(QTableWidgetItem *item)
+void MainWindow::renameModSave()
 {
-  /*  if(item->column() != 0) item = modList->item(item->row(), 0);
-    renameModName = item->text();
-    renameModItem = item;
-    connect(modList, &QTableWidget::itemChanged, this, &MainWindow::renameModSave);
-    modList->editItem(item);*/
+    const QString &newName = renameEdit->text(),
+                  &modName = modTable->cellLabel(modTable->currentRow(), 0)->text();
+
+    if(newName.isEmpty() || modName == newName) renameModDone();
+    else if(md::exists(modTable->modData, newName)) showMsg(d::MOD_EXISTS_, Msgr::Error);
+    else if(!u::isValidFileName(newName)) showMsg(d::INVALID_X.arg(d::lFILENAME)+".\n"+d::CHARACTERS_NOT_ALLOWED, Msgr::Error);
+    else if(QFile::rename(core->cfg.pathMods+"/"+modName, core->cfg.pathMods+"/"+newName))
+    {
+        modTable->renameMod(modName, newName);
+        renameModDone();
+    }
+    else showMsg(d::FAILED_TO_X_.arg(d::lRENAME+" "+modName), Msgr::Error);
 }
 
-void MainWindow::renameModSave(QTableWidgetItem *item)
-{/*
-    disconnect(modList, &QTableWidget::itemChanged, this, &MainWindow::renameModSave);
-
-    QString statusMsg;
-    bool error = true;
-
-    if(item != renameModItem) statusMsg = d::FAILED_TO_X_.arg(d::lRENAME_MOD);
-    else
-    {
-        const QString &srcPath = core->cfg.pathMods+"/"+renameModName;
-        const QFileInfo &fiSrc(srcPath);
-
-        if(fiSrc.isSymLink() || !fiSrc.exists() || !fiSrc.isDir())
-            statusMsg = d::X_NOT_FOUND.arg(d::MOD)+".";
-        else
-        {
-            const QString &newModName = item->text().simplified();
-
-            if(!u::isValidFileName(newModName))
-                statusMsg = d::INVALID_X.arg(d::lFILENAME)+".\n"+d::CHARACTERS_NOT_ALLOWED;
-            else
-            {
-                const QString &dstPath = core->cfg.pathMods+"/"+newModName;
-
-                if(QFileInfo().exists(dstPath)) statusMsg = d::MOD_EXISTS_;
-                else if(!QDir().rename(srcPath, dstPath)) statusMsg = d::FAILED_TO_X_.arg(d::lRENAME_MOD);
-                else
-                {
-                    error = false;
-                    statusMsg = d::X_RENAMED_X_.arg(renameModName, newModName);
-                }
-            }
-        }
-
-        if(error) item->setText(renameModName);
-    }
-
-    renameModName = QString();
-    renameModItem = nullptr;
-
-    showMsg(statusMsg, error ? Msgr::Error : Msgr::Default);*/
+void MainWindow::renameModDone()
+{
+    modTable->setIdle(modTable->cellLabel(modTable->currentRow(), 0)->text());
+    renameDg->close();
 }
 
 void MainWindow::openFolder(const QString &path, const QString &name, QString lName)
@@ -747,7 +749,9 @@ void MainWindow::openModFolder()
     if(modTable->modSelected())
     {
         const QString &modName = modTable->modNames[modTable->currentRow()];
-        openFolder(core->cfg.pathMods+"/"+modName, modName);
+
+        if(isExternal(modName)) openFolder(core->cfg.getSetting(Config::kGamePath)+"/"+md::w3mod, modName);
+        else openFolder(core->cfg.pathMods+"/"+modName, modName);
     }
     else openModsFolder();
 }
