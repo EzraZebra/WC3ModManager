@@ -1,3 +1,5 @@
+# Moved to [GitLab](https://gitlab.com/EzraZebra/WC3ModManager/tree/1.2.0)
+
 ![WC3 Mod Manager](https://raw.githubusercontent.com/EzraZebra/WC3ModManager/master/img/logo.png)
 
 The easiest and most reliable way to mod Warcraft III is using the `Allow Local Files` registry setting, which allows custom files in the game's install folder to be loaded by the game.
